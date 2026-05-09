@@ -1,0 +1,474 @@
+use "constants.shl"
+use "moves.shl"
+use "time"
+use "book.shl"
+
+
+
+PAWN_PST = [
+    0,  0,  0,  0,  0,  0,  0,  0,
+    50, 50, 50, 50, 50, 50, 50, 50,
+    10, 10, 20, 30, 30, 20, 10, 10,
+     5,  5, 10, 25, 25, 10,  5,  5,
+     0,  0,  0, 20, 20,  0,  0,  0,
+     5,  0 - 5, 0 - 10,  0,  0, 0 - 10, 0 - 5,  5,
+     5, 10, 10, 0 - 20, 0 - 20, 10, 10,  5,
+     0,  0,  0,  0,  0,  0,  0,  0
+]
+
+KNIGHT_PST = [
+    0 - 50, 0 - 40, 0 - 30, 0 - 30, 0 - 30, 0 - 30, 0 - 40, 0 - 50,
+    0 - 40, 0 - 20,   0,   0,   0,   0, 0 - 20, 0 - 40,
+    0 - 30,   0,  10,  15,  15,  10,   0, 0 - 30,
+    0 - 30,   5,  15,  20,  20,  15,   5, 0 - 30,
+    0 - 30,   0,  15,  20,  20,  15,   0, 0 - 30,
+    0 - 30,   5,  10,  15,  15,  10,   5, 0 - 30,
+    0 - 40, 0 - 20,   0,   5,   5,   0, 0 - 20, 0 - 40,
+    0 - 50, 0 - 40, 0 - 30, 0 - 30, 0 - 30, 0 - 30, 0 - 40, 0 - 50
+]
+
+BISHOP_PST = [
+    0 - 20, 0 - 10, 0 - 10, 0 - 10, 0 - 10, 0 - 10, 0 - 10, 0 - 20,
+    0 - 10,   0,   0,   0,   0,   0,   0, 0 - 10,
+    0 - 10,   0,   5,  10,  10,   5,   0, 0 - 10,
+    0 - 10,   5,   5,  10,  10,   5,   5, 0 - 10,
+    0 - 10,   0,  10,  10,  10,  10,   0, 0 - 10,
+    0 - 10,  10,  10,  10,  10,  10,  10, 0 - 10,
+    0 - 10,   5,   0,   0,   0,   0,   5, 0 - 10,
+    0 - 20, 0 - 10, 0 - 10, 0 - 10, 0 - 10, 0 - 10, 0 - 10, 0 - 20
+]
+
+ROOK_PST = [
+      0,  0,  0,  0,  0,  0,  0,  0,
+      5, 10, 10, 10, 10, 10, 10,  5,
+    0 - 5,  0,  0,  0,  0,  0,  0, 0 - 5,
+    0 - 5,  0,  0,  0,  0,  0,  0, 0 - 5,
+    0 - 5,  0,  0,  0,  0,  0,  0, 0 - 5,
+    0 - 5,  0,  0,  0,  0,  0,  0, 0 - 5,
+    0 - 5,  0,  0,  0,  0,  0,  0, 0 - 5,
+      0,  0,  0,  5,  5,  0,  0,  0
+]
+
+KING_PST = [
+    0 - 30, 0 - 40, 0 - 40, 0 - 50, 0 - 50, 0 - 40, 0 - 40, 0 - 30,
+    0 - 30, 0 - 40, 0 - 40, 0 - 50, 0 - 50, 0 - 40, 0 - 40, 0 - 30,
+    0 - 30, 0 - 40, 0 - 40, 0 - 50, 0 - 50, 0 - 40, 0 - 40, 0 - 30,
+    0 - 30, 0 - 40, 0 - 40, 0 - 50, 0 - 50, 0 - 40, 0 - 40, 0 - 30,
+    0 - 20, 0 - 30, 0 - 30, 0 - 40, 0 - 40, 0 - 30, 0 - 30, 0 - 20,
+    0 - 10, 0 - 20, 0 - 20, 0 - 20, 0 - 20, 0 - 20, 0 - 20, 0 - 10,
+     20,  20,   0,   0,   0,   0,  20,  20,
+     20,  30,  10,   0,   0,  10,  30,  20
+]
+
+KING_ENDGAME_PST = [
+    0 - 50, 0 - 40, 0 - 30, 0 - 20, 0 - 20, 0 - 30, 0 - 40, 0 - 50,
+    0 - 30, 0 - 20, 0 - 10,   0,   0, 0 - 10, 0 - 20, 0 - 30,
+    0 - 30, 0 - 10,  20,  30,  30,  20, 0 - 10, 0 - 30,
+    0 - 30, 0 - 10,  30,  40,  40,  30, 0 - 10, 0 - 30,
+    0 - 30, 0 - 10,  30,  40,  40,  30, 0 - 10, 0 - 30,
+    0 - 30, 0 - 10,  20,  30,  30,  20, 0 - 10, 0 - 30,
+    0 - 30, 0 - 30,   0,   0,   0,   0, 0 - 30, 0 - 30,
+    0 - 50, 0 - 30, 0 - 30, 0 - 30, 0 - 30, 0 - 30, 0 - 30, 0 - 50
+]
+
+
+
+
+tt_table = {}
+
+to tt_lookup key depth alpha beta
+    if contains(tt_table, key)
+        entry = tt_table[key]
+        if entry["depth"] >= depth
+            val = entry["val"]
+            flag = entry["flag"]
+            if flag == 0
+                give val
+            if flag == 1
+                if val >= beta
+                    give val
+            if flag == 2
+                if val <= alpha
+                    give val
+    give null
+
+to tt_store key depth val flag move
+    entry = {
+        "depth": depth,
+        "val": val,
+        "flag": flag,
+        "move": move
+    }
+    tt_table[key] = entry
+
+
+
+killer_table = {}
+
+to add_killer ply move
+    if not contains(killer_table, ply)
+        killer_table[ply] = []
+
+    killers = killer_table[ply]
+    already_exists = no
+    for km in killers
+        if km.from_sq == move.from_sq and km.to_sq == move.to_sq
+            already_exists = yes
+
+    if not already_exists
+        add move to killers
+        if len(killers) > 2
+            pop(killers, 0)
+
+
+
+
+
+
+to is_endgame board
+    white_pieces = 0
+    black_pieces = 0
+    white_queens = 0
+    black_queens = 0
+    sqs = board.squares
+    for i in range 0 64
+        p = sqs[i]
+        if p != 0
+            ptype = get_piece_type(p)
+            color = get_piece_color(p)
+            if ptype != PAWN and ptype != KING
+                if color == WHITE
+                    white_pieces = white_pieces + 1
+                    if ptype == QUEEN
+                        white_queens = white_queens + 1
+                else
+                    black_pieces = black_pieces + 1
+                    if ptype == QUEEN
+                        black_queens = black_queens + 1
+
+    if white_queens == 0 and black_queens == 0
+        give yes
+    if white_pieces <= 2 and black_pieces <= 2
+        give yes
+    give no
+
+to evaluate board
+    score = 0
+    sqs = board.squares
+    turn = board.turn
+
+    is_eg = is_endgame(board)
+
+    white_pieces = 0
+    black_pieces = 0
+
+    for i in range 0 64
+        p = sqs[i]
+        if p == 0
+            skip
+
+        color = get_piece_color(p)
+        ptype = get_piece_type(p)
+
+        if ptype != PAWN and ptype != KING
+            if color == WHITE
+                white_pieces = white_pieces + 1
+            else
+                black_pieces = black_pieces + 1
+
+        val = 0
+        if ptype == 1
+            val = 100
+            if is_eg
+                r = int(i / 8)
+                if color == WHITE
+                    rank_num = 7 - r
+                    if rank_num >= 4
+                        val = val + rank_num * 10
+                else
+                    rank_num = r
+                    if rank_num >= 4
+                        val = val + rank_num * 10
+        elif ptype == 2
+            val = 300
+        elif ptype == 3
+            val = 320
+        elif ptype == 4
+            val = 500
+        elif ptype == 5
+            val = 900
+        elif ptype == 6
+            val = 20000
+
+
+        idx = i
+        if color == 16
+            r = int(i / 8)
+            c = i % 8
+            idx = (7 - r) * 8 + c
+
+        pst_val = 0
+        if ptype == 1
+            pst_val = PAWN_PST[idx]
+        elif ptype == 2
+            pst_val = KNIGHT_PST[idx]
+        elif ptype == 3
+            pst_val = BISHOP_PST[idx]
+        elif ptype == 4
+            pst_val = ROOK_PST[idx]
+        elif ptype == 6
+            if is_eg
+                pst_val = KING_ENDGAME_PST[idx]
+            else
+                pst_val = KING_PST[idx]
+
+        val = val + pst_val
+
+        if color == turn
+            score = score + val
+        else
+            score = score - val
+
+    if is_eg
+        if white_pieces == 0
+            wk_sq = board.get_king_square(WHITE)
+            bk_sq = board.get_king_square(BLACK)
+            if wk_sq != 0 - 1 and bk_sq != 0 - 1
+                wk_r = int(wk_sq / 8)
+                wk_c = wk_sq % 8
+                dist_to_center = abs(wk_r - 3.5) + abs(wk_c - 3.5)
+
+                bk_r = int(bk_sq / 8)
+                bk_c = bk_sq % 8
+                dist_between_kings = abs(wk_r - bk_r) + abs(wk_c - bk_c)
+
+                mop_up = int(dist_to_center * 10) + int((14 - dist_between_kings) * 5)
+                if turn == BLACK
+                    score = score + mop_up
+                else
+                    score = score - mop_up
+        elif black_pieces == 0
+            wk_sq = board.get_king_square(WHITE)
+            bk_sq = board.get_king_square(BLACK)
+            if wk_sq != 0 - 1 and bk_sq != 0 - 1
+                bk_r = int(bk_sq / 8)
+                bk_c = bk_sq % 8
+                dist_to_center = abs(bk_r - 3.5) + abs(bk_c - 3.5)
+
+                wk_r = int(wk_sq / 8)
+                wk_c = wk_sq % 8
+                dist_between_kings = abs(wk_r - bk_r) + abs(wk_c - bk_c)
+
+                mop_up = int(dist_to_center * 10) + int((14 - dist_between_kings) * 5)
+                if turn == WHITE
+                    score = score + mop_up
+                else
+                    score = score - mop_up
+
+    give score
+
+
+
+
+to generate_legal_captures board
+    original_turn = board.turn
+    pseudo = generate_pseudo_legal_moves(board)
+    legal_captures = []
+    for m in pseudo
+        if m.captured == EMPTY or m.captured == 0
+            skip
+
+        board.make_move(m)
+        if not is_square_attacked(board, board.get_king_square(original_turn), board.turn)
+            add m to legal_captures
+        board.undo_move()
+    give legal_captures
+
+
+
+search_state = { "start_time": 0.0, "time_limit": 100000000.0, "aborted": no, "node_count": 0 }
+
+to check_time
+    search_state["node_count"] = search_state["node_count"] + 1
+    if search_state["node_count"] % 1024 == 0
+        elapsed = time.time() * 1000.0 - search_state["start_time"]
+        if elapsed > search_state["time_limit"]
+            search_state["aborted"] = yes
+
+
+
+to quiescence board alpha beta
+    check_time()
+    if search_state["aborted"] == yes
+        give 0
+
+    stand_pat = evaluate(board)
+    if stand_pat >= beta
+        give beta
+
+
+    if stand_pat + 975 < alpha
+        give alpha
+
+    if stand_pat > alpha
+        alpha = stand_pat
+
+    moves = generate_legal_captures(board)
+    ordered = order_moves(moves, null, 0)
+
+    for m in ordered
+        board.make_move(m)
+        score = 0 - quiescence(board, 0 - beta, 0 - alpha)
+        board.undo_move()
+
+        if score >= beta
+            give beta
+        if score > alpha
+            alpha = score
+
+    give alpha
+
+
+
+to make_null_move board
+    old_turn = board.turn
+    old_ep = board.ep_square
+    if board.turn == WHITE
+        board.set_turn(BLACK)
+    else
+        board.set_turn(WHITE)
+    board.set_ep_square(0 - 1)
+    give [old_turn, old_ep]
+
+to undo_null_move board state
+    board.set_turn(state[0])
+    board.set_ep_square(state[1])
+
+
+
+to find_best_move board depth allocated_time = 100000000.0
+    book_move = get_book_move(board)
+    if book_move != null
+        give book_move
+
+    moves = generate_legal_moves(board)
+
+    if empty(moves)
+        give null
+
+    best_move = null
+    clear_dict(tt_table)
+    clear_dict(killer_table)
+
+    search_state["start_time"] = time.time() * 1000.0
+    search_state["time_limit"] = float(allocated_time)
+    search_state["aborted"] = no
+    search_state["node_count"] = 0
+
+    last_completed_best_move = moves[0]
+
+    end_depth = depth + 1
+    for d in range 1 end_depth
+        key = str(board.squares) + "," + str(board.turn)
+        hash_move = null
+        if contains(tt_table, key)
+            hash_move = tt_table[key]["move"]
+
+        ordered = order_moves(moves, hash_move, 0)
+
+        best_val = 0 - 1000000
+        depth_best_move = null
+
+        for m in ordered
+            board.make_move(m)
+            val = 0 - negamax(board, d - 1, 0 - 1000000, 0 - best_val, 1)
+            board.undo_move()
+
+            if search_state["aborted"] == yes
+                stop
+
+            if val > best_val
+                best_val = val
+                depth_best_move = m
+
+        if search_state["aborted"] == yes
+            stop
+
+        last_completed_best_move = depth_best_move
+        tt_store(key, d, best_val, 0, depth_best_move)
+
+        elapsed = time.time() * 1000.0 - search_state["start_time"]
+        if elapsed * 2.0 > search_state["time_limit"]
+            stop
+
+    give last_completed_best_move
+
+to negamax board depth alpha beta ply
+    check_time()
+    if search_state["aborted"] == yes
+        give 0
+
+    key = str(board.squares) + "," + str(board.turn)
+    tt_val = tt_lookup(key, depth, alpha, beta)
+    if tt_val != null
+        give tt_val
+
+    if depth == 0
+        give quiescence(board, alpha, beta)
+
+    if depth >= 3 and not is_in_check(board, board.turn)
+        null_state = make_null_move(board)
+        score = 0 - negamax(board, depth - 3, 0 - beta, 0 - beta + 1, ply + 1)
+        undo_null_move(board, null_state)
+        if score >= beta
+            give beta
+
+    moves = generate_legal_moves(board)
+    if empty(moves)
+        if is_in_check(board, board.turn)
+            give 0 - 100000 + ply
+        else
+            give 0
+
+    hash_move = null
+    if contains(tt_table, key)
+        hash_move = tt_table[key]["move"]
+
+    ordered = order_moves(moves, hash_move, ply)
+
+    best_val = 0 - 1000000
+    best_move = null
+
+    for m in ordered
+        board.make_move(m)
+        val = 0 - negamax(board, depth - 1, 0 - beta, 0 - alpha, ply + 1)
+        board.undo_move()
+
+        if search_state["aborted"] == yes
+            stop
+
+        if val > best_val
+            best_val = val
+            best_move = m
+
+        if val > alpha
+            alpha = val
+
+        if beta <= alpha
+            if m.captured == EMPTY or m.captured == 0
+                add_killer(ply, m)
+            stop
+
+    if search_state["aborted"] == yes
+        give 0
+
+    flag = 0
+    if best_val <= alpha
+        flag = 2
+    elif best_val >= beta
+        flag = 1
+
+    tt_store(key, depth, best_val, flag, best_move)
+    give best_val
+
+

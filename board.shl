@@ -1,0 +1,284 @@
+use "constants.shl"
+
+structure Board
+    has dummy = 0
+    has squares = []
+    has turn = WHITE
+    has castling = { "WK": yes, "WQ": yes, "BK": yes, "BQ": yes }
+    has ep_square = 0 - 1
+    has halfmove = 0
+    has fullmove = 1
+    has history = []
+
+    to get_king_square color
+        for i in range 0 64
+            p = squares[i]
+            if p != EMPTY and get_piece_type(p) == KING and get_piece_color(p) == color
+                give i
+        give 0 - 1
+
+    to reset
+        squares = []
+        repeat 64 times
+            add EMPTY to squares
+
+
+
+        squares[0] = ROOK + BLACK
+        squares[1] = KNIGHT + BLACK
+        squares[2] = BISHOP + BLACK
+        squares[3] = QUEEN + BLACK
+        squares[4] = KING + BLACK
+        squares[5] = BISHOP + BLACK
+        squares[6] = KNIGHT + BLACK
+        squares[7] = ROOK + BLACK
+        for i in range 8 16
+            squares[i] = PAWN + BLACK
+
+
+        for i in range 48 56
+            squares[i] = PAWN + WHITE
+        squares[56] = ROOK + WHITE
+        squares[57] = KNIGHT + WHITE
+        squares[58] = BISHOP + WHITE
+        squares[59] = QUEEN + WHITE
+        squares[60] = KING + WHITE
+        squares[61] = BISHOP + WHITE
+        squares[62] = KNIGHT + WHITE
+        squares[63] = ROOK + WHITE
+
+        turn = WHITE
+        ep_square = 0 - 1
+        halfmove = 0
+        fullmove = 1
+        history = []
+
+    to set_fen fen_str
+        squares = []
+        repeat 64 times
+            add EMPTY to squares
+
+        history = []
+
+
+        parts = split(fen_str)
+        if empty(parts)
+            give no
+
+        placement = parts[0]
+        row = 0
+        col = 0
+        n = len(placement)
+        for i in range 0 n
+            char_val = placement[i]
+            if char_val == "/"
+                row = row + 1
+                col = 0
+            elif char_val == "1" or char_val == "2" or char_val == "3" or char_val == "4" or char_val == "5" or char_val == "6" or char_val == "7" or char_val == "8"
+                col = col + int(char_val)
+            else
+                piece = EMPTY
+                if char_val == "p"
+                    piece = PAWN + BLACK
+                elif char_val == "n"
+                    piece = KNIGHT + BLACK
+                elif char_val == "b"
+                    piece = BISHOP + BLACK
+                elif char_val == "r"
+                    piece = ROOK + BLACK
+                elif char_val == "q"
+                    piece = QUEEN + BLACK
+                elif char_val == "k"
+                    piece = KING + BLACK
+                elif char_val == "P"
+                    piece = PAWN + WHITE
+                elif char_val == "N"
+                    piece = KNIGHT + WHITE
+                elif char_val == "B"
+                    piece = BISHOP + WHITE
+                elif char_val == "R"
+                    piece = ROOK + WHITE
+                elif char_val == "Q"
+                    piece = QUEEN + WHITE
+                elif char_val == "K"
+                    piece = KING + WHITE
+
+                squares[row * 8 + col] = piece
+                col = col + 1
+
+        turn = WHITE
+        if len(parts) > 1
+            if parts[1] == "b"
+                turn = BLACK
+
+        castling = { "WK": no, "WQ": no, "BK": no, "BQ": no }
+        if len(parts) > 2
+            c_rights = parts[2]
+            n_c = len(c_rights)
+            for i in range 0 n_c
+                c_char = c_rights[i]
+                if c_char == "K"
+                    castling["WK"] = yes
+                elif c_char == "Q"
+                    castling["WQ"] = yes
+                elif c_char == "k"
+                    castling["BK"] = yes
+                elif c_char == "q"
+                    castling["BQ"] = yes
+
+        ep_square = 0 - 1
+        if len(parts) > 3
+            ep_str = parts[3]
+            if ep_str != "-" and len(ep_str) == 2
+                f_idx = ord(ep_str[0]) - ord("a")
+                r_idx = 8 - int(ep_str[1])
+                ep_square = r_idx * 8 + f_idx
+
+        halfmove = 0
+        if len(parts) > 4
+            halfmove = int(parts[4])
+
+        fullmove = 1
+        if len(parts) > 5
+            fullmove = int(parts[5])
+
+    to get_piece square
+        give squares[square]
+
+    to set_piece square piece
+        squares[square] = piece
+
+    to is_empty square
+        give squares[square] == EMPTY
+
+    to get_color piece
+        if piece == EMPTY
+            give 0
+        if piece < BLACK
+            give WHITE
+        else
+            give BLACK
+
+    to get_type piece
+        if piece == EMPTY
+            give EMPTY
+        if piece < BLACK
+            give piece - WHITE
+        else
+            give piece - BLACK
+
+    to set_turn t
+        turn = t
+
+    to set_ep_square sq
+        ep_square = sq
+
+    to make_move move
+        state = {
+            "turn": turn,
+            "castling": { "WK": castling["WK"], "WQ": castling["WQ"], "BK": castling["BK"], "BQ": castling["BQ"] },
+            "ep_square": ep_square,
+            "halfmove": halfmove,
+            "move": move
+        }
+        add state to history
+
+        squares[move.to_sq] = move.piece
+        if get_piece_type(move.piece) == PAWN
+            to_row = int(move.to_sq / 8)
+            if to_row == 0
+                squares[move.to_sq] = QUEEN + WHITE
+            elif to_row == 7
+                squares[move.to_sq] = QUEEN + BLACK
+        squares[move.from_sq] = EMPTY
+
+        if move.flags == 2
+            if turn == WHITE
+                squares[move.to_sq + 8] = EMPTY
+            else
+                squares[move.to_sq - 8] = EMPTY
+
+        if move.flags == 4
+            if move.to_sq == 62
+                squares[61] = ROOK + WHITE
+                squares[63] = EMPTY
+            elif move.to_sq == 58
+                squares[59] = ROOK + WHITE
+                squares[56] = EMPTY
+            elif move.to_sq == 6
+                squares[5] = ROOK + BLACK
+                squares[7] = EMPTY
+            elif move.to_sq == 2
+                squares[3] = ROOK + BLACK
+                squares[0] = EMPTY
+        if move.from_sq == 60
+            castling["WK"] = no
+            castling["WQ"] = no
+        elif move.from_sq == 4
+            castling["BK"] = no
+            castling["BQ"] = no
+        if move.from_sq == 56 or move.to_sq == 56
+            castling["WQ"] = no
+        if move.from_sq == 63 or move.to_sq == 63
+            castling["WK"] = no
+        if move.from_sq == 0 or move.to_sq == 0
+            castling["BQ"] = no
+        if move.from_sq == 7 or move.to_sq == 7
+            castling["BK"] = no
+
+        ep_square = 0 - 1
+        if get_piece_type(move.piece) == PAWN
+            if abs(move.to_sq - move.from_sq) == 16
+                ep_square = int((move.from_sq + move.to_sq) / 2)
+
+        if turn == WHITE
+            turn = BLACK
+        else
+            turn = WHITE
+            fullmove = fullmove + 1
+
+    to undo_move
+        if empty(history)
+            give no
+
+        state = history.pop()
+
+        move = state["move"]
+        squares[move.from_sq] = move.piece
+        squares[move.to_sq] = move.captured
+
+        if move.flags == 2
+            squares[move.to_sq] = EMPTY
+            if state["turn"] == WHITE
+                squares[move.to_sq + 8] = PAWN + BLACK
+            else
+                squares[move.to_sq - 8] = PAWN + WHITE
+
+        if move.flags == 4
+            if move.to_sq == 62
+                squares[63] = ROOK + WHITE
+                squares[61] = EMPTY
+            elif move.to_sq == 58
+                squares[56] = ROOK + WHITE
+                squares[59] = EMPTY
+            elif move.to_sq == 6
+                squares[7] = ROOK + BLACK
+                squares[5] = EMPTY
+            elif move.to_sq == 2
+                squares[0] = ROOK + BLACK
+                squares[3] = EMPTY
+
+        turn = state["turn"]
+        castling = state["castling"]
+        ep_square = state["ep_square"]
+        halfmove = state["halfmove"]
+
+        if turn == BLACK
+            fullmove = fullmove - 1
+
+        give yes
+
+to create_board
+    b = Board(0)
+    b.reset()
+    give b

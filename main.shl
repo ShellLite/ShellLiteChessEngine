@@ -1,0 +1,158 @@
+use "constants.shl"
+use "board.shl"
+use "moves.shl"
+use "search.shl"
+
+to square_to_str sq
+    r = int(sq / 8)
+    c = sq % 8
+    f = char(ord("a") + c)
+    rank = str(8 - r)
+    give f + rank
+
+to move_to_str move
+    give square_to_str(move.from_sq) + square_to_str(move.to_sq)
+
+to str_to_sq s
+    f = ord(s[0]) - ord("a")
+    r = 8 - int(s[1])
+    give r * 8 + f
+
+to play_game
+    board = create_board()
+    say "info string engine ready"
+
+    forever
+        line = ask ""
+        if line == "uci"
+            say "id name run_engine"
+            say "id author Shrey Naithani"
+            say "uciok"
+        elif line == "isready"
+            say "readyok"
+        elif line == "ucinewgame"
+            board.reset()
+            say "info string board reset"
+        elif line.startswith("position")
+            if "startpos" in line
+                board.reset()
+            elif "fen" in line
+                parts = split(line)
+                fen_parts = []
+                found_fen = no
+                n_parts = len(parts)
+                for idx in range 0 n_parts
+                    p = parts[idx]
+                    if p == "fen"
+                        found_fen = yes
+                        skip
+                    if p == "moves"
+                        stop
+                    if found_fen
+                        add p to fen_parts
+
+                fen_str = ""
+                first_flag = yes
+                for fp in fen_parts
+                    if first_flag
+                        fen_str = fp
+                        first_flag = no
+                    else
+                        fen_str = fen_str + " " + fp
+
+                board.set_fen(fen_str)
+
+            if "moves" in line
+                parts = split(line)
+                found_moves = no
+                for p in parts
+                    if p == "moves"
+                        found_moves = yes
+                        skip
+                    if found_moves and len(p) >= 4
+                        fsq = str_to_sq(p[0] + p[1])
+                        tsq = str_to_sq(p[2] + p[3])
+                        piece = board.get_piece(fsq)
+                        if piece != EMPTY
+                            captured = board.get_piece(tsq)
+                            flags = 0
+                            pt = get_piece_type(piece)
+
+                            if pt == KING and abs(tsq - fsq) == 2
+                                flags = 4
+
+                            if pt == PAWN
+                                diff = abs(tsq - fsq)
+                                if diff == 16
+                                    flags = 1
+                                elif (diff == 7 or diff == 9) and captured == EMPTY
+                                    flags = 2
+                                    if board.turn == WHITE
+                                        captured = PAWN + BLACK
+                                    else
+                                        captured = PAWN + WHITE
+
+                            m = Move(fsq, tsq, piece, captured, flags)
+                            board.make_move(m)
+        elif line.startswith("go")
+            search_depth = 12
+            allocated_time = 100000000.0
+
+            parts = split(line)
+            n_p = len(parts)
+
+            idx = 0
+            for p in parts
+                if p == "depth" and idx + 1 < n_p
+                    search_depth = int(parts[idx + 1])
+                elif p == "movetime" and idx + 1 < n_p
+                    allocated_time = float(parts[idx + 1])
+                idx = idx + 1
+
+            if "wtime" in line or "btime" in line
+                my_time = 0.0
+                my_inc = 0.0
+                idx = 0
+                for p in parts
+                    if board.turn == WHITE
+                        if p == "wtime" and idx + 1 < n_p
+                            my_time = float(parts[idx + 1])
+                        elif p == "winc" and idx + 1 < n_p
+                            my_inc = float(parts[idx + 1])
+                    else
+                        if p == "btime" and idx + 1 < n_p
+                            my_time = float(parts[idx + 1])
+                        elif p == "binc" and idx + 1 < n_p
+                            my_inc = float(parts[idx + 1])
+                    idx = idx + 1
+
+                if my_time > 0.0
+                    allocated_time = my_time / 40.0 + my_inc
+                    max_safe = my_time * 0.8
+                    if allocated_time > max_safe
+                        allocated_time = max_safe
+
+            if "infinite" in line
+                search_depth = 20
+                allocated_time = 100000000.0
+
+            best_move = find_best_move(board, search_depth, allocated_time)
+            if best_move != null
+                out = "bestmove " + move_to_str(best_move)
+                say out
+            else
+                say "bestmove 0000"
+        elif line == "quit"
+            stop
+        elif line == "d"
+            for r in range 0 8
+                row_str = ""
+                for c in range 0 8
+                    p = board.get_piece(r * 8 + c)
+                    if p == EMPTY
+                        row_str = row_str + ". "
+                    else
+                        row_str = row_str + str(p) + " "
+                say row_str
+
+play_game()

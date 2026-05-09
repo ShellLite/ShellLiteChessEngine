@@ -1,0 +1,29 @@
+use "constants.shl"
+use "board.shl"
+use "moves.shl"
+
+to perft board depth
+    if depth == 0
+        give 1
+
+    nodes = 0
+    moves = generate_legal_moves(board)
+
+    for m in moves
+        board.make_move(m)
+        nodes = nodes + perft(board, depth - 1)
+        board.undo_move()
+
+    give nodes
+
+to test_perft
+    board = create_board()
+
+    say "Perft Test from Start Position"
+    for d in range 1 4
+        board.reset()
+        say "Running depth " + str(d) + "..."
+        nodes = perft(board, d)
+        say "Depth " + str(d) + " nodes: " + str(nodes)
+
+test_perft()

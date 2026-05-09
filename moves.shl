@@ -1,0 +1,393 @@
+use "constants.shl"
+use "math"
+
+to get_row sq
+    give int(sq / 8)
+
+to get_col sq
+    give sq % 8
+
+to get_sq r c
+    give r * 8 + c
+
+structure Move
+    has from_sq
+    has to_sq
+    has piece
+    has captured = 0
+    has flags = 0
+
+to generate_pseudo_legal_moves board
+    moves = []
+    sqs = board.squares
+    for i in range 0 64
+        piece = sqs[i]
+        if piece == EMPTY
+            skip
+
+        color = 0
+        if piece < BLACK
+            color = WHITE
+        else
+            color = BLACK
+
+        if color != board.turn
+            skip
+
+        piece_type = 0
+        if piece < BLACK
+            piece_type = piece - WHITE
+        else
+            piece_type = piece - BLACK
+
+        if piece_type == PAWN
+            generate_pawn_moves(board, i, moves)
+        elif piece_type == KNIGHT
+            generate_knight_moves(board, i, moves)
+        elif piece_type == BISHOP
+            bishop_dirs = [7, 0 - 7, 9, 0 - 9]
+            generate_sliding_moves(board, i, bishop_dirs, moves)
+        elif piece_type == ROOK
+            rook_dirs = [1, 0 - 1, 8, 0 - 8]
+            generate_sliding_moves(board, i, rook_dirs, moves)
+        elif piece_type == QUEEN
+            queen_dirs = [1, 0 - 1, 8, 0 - 8, 7, 0 - 7, 9, 0 - 9]
+            generate_sliding_moves(board, i, queen_dirs, moves)
+        elif piece_type == KING
+            generate_king_moves(board, i, moves)
+
+    give moves
+
+to generate_pawn_moves board sq moves
+    r = get_row(sq)
+    if r == 0 or r == 7
+        give no
+    c = get_col(sq)
+    sqs = board.squares
+    p_orig = sqs[sq]
+    color = get_piece_color(p_orig)
+    if color == WHITE
+        target = get_sq(r - 1, c)
+        if r > 0 and sqs[target] == EMPTY
+            add Move(sq, target, p_orig) to moves
+            target2 = get_sq(r - 2, c)
+            if r == 6 and sqs[target2] == EMPTY
+                m = Move(sq, target2, p_orig, 0, 1)
+                add m to moves
+        for dc in [0 - 1, 1]
+            nc = c + dc
+            if nc >= 0 and nc < 8
+                target = get_sq(r - 1, nc)
+                tp = sqs[target]
+                if tp != EMPTY and get_piece_color(tp) == BLACK
+                    m = Move(sq, target, p_orig, tp, 0)
+                    add m to moves
+                elif target == board.ep_square
+                    m = Move(sq, target, p_orig, PAWN + BLACK, 2)
+                    add m to moves
+    else
+        target = get_sq(r + 1, c)
+        if r < 7 and sqs[target] == EMPTY
+            add Move(sq, target, p_orig) to moves
+            target2 = get_sq(r + 2, c)
+            if r == 1 and sqs[target2] == EMPTY
+                m = Move(sq, target2, p_orig, 0, 1)
+                add m to moves
+        for dc in [0 - 1, 1]
+            nc = c + dc
+            if nc >= 0 and nc < 8
+                target = get_sq(r + 1, nc)
+                tp = sqs[target]
+                if tp != EMPTY and get_piece_color(tp) == WHITE
+                    m = Move(sq, target, p_orig, tp, 0)
+                    add m to moves
+                elif target == board.ep_square
+                    m = Move(sq, target, p_orig, PAWN + WHITE, 2)
+                    add m to moves
+
+to generate_knight_moves board sq moves
+    r = get_row(sq)
+    c = get_col(sq)
+    sqs = board.squares
+    piece = sqs[sq]
+    color = get_piece_color(piece)
+
+    offsets = [[0 - 2, 0 - 1], [0 - 2, 1], [0 - 1, 0 - 2], [0 - 1, 2], [1, 0 - 2], [1, 2], [2, 0 - 1], [2, 1]]
+    for off in offsets
+        nr = r + off[0]
+        nc = c + off[1]
+        if nr >= 0 and nr < 8 and nc >= 0 and nc < 8
+            target = get_sq(nr, nc)
+            tp = sqs[target]
+            if tp == EMPTY
+                add Move(sq, target, piece) to moves
+            elif get_piece_color(tp) != color
+                m = Move(sq, target, piece, tp, 0)
+                add m to moves
+
+to generate_sliding_moves board sq directions moves
+    r = get_row(sq)
+    c = get_col(sq)
+    sqs = board.squares
+    piece = sqs[sq]
+    color = get_piece_color(piece)
+
+    for d in directions
+        dr = 0
+        dc = 0
+        if d == 1
+            dc = 1
+        elif d == 0 - 1
+            dc = 0 - 1
+        elif d == 8
+            dr = 1
+        elif d == 0 - 8
+            dr = 0 - 1
+        elif d == 7
+            dr = 1
+            dc = 0 - 1
+        elif d == 0 - 7
+            dr = 0 - 1
+            dc = 1
+        elif d == 9
+            dr = 1
+            dc = 1
+        elif d == 0 - 9
+            dr = 0 - 1
+            dc = 0 - 1
+
+        nr = r + dr
+        nc = c + dc
+        while nr >= 0 and nr < 8 and nc >= 0 and nc < 8
+            target = get_sq(nr, nc)
+            tp = sqs[target]
+            if tp == EMPTY
+                add Move(sq, target, piece) to moves
+            else
+                if get_piece_color(tp) != color
+                    m = Move(sq, target, piece, tp, 0)
+                    add m to moves
+                stop
+            nr = nr + dr
+            nc = nc + dc
+
+to generate_king_moves board sq moves
+    r = get_row(sq)
+    c = get_col(sq)
+    sqs = board.squares
+    piece = sqs[sq]
+    color = get_piece_color(piece)
+
+    ks = 0 - 1
+    ke = 2
+    for dr in range ks ke
+        for dc in range ks ke
+            if dr == 0 and dc == 0
+                skip
+            nr = r + dr
+            nc = c + dc
+            if nr >= 0 and nr < 8 and nc >= 0 and nc < 8
+                target = get_sq(nr, nc)
+                tp = sqs[target]
+                if tp == EMPTY
+                    add Move(sq, target, piece) to moves
+                elif get_piece_color(tp) != color
+                    m = Move(sq, target, piece, tp, 0)
+                    add m to moves
+
+    castl = board.castling
+    if color == WHITE
+        if castl["WK"]
+            if board.is_empty(61) and board.is_empty(62)
+                if not is_square_attacked(board, 60, BLACK) and not is_square_attacked(board, 61, BLACK) and not is_square_attacked(board, 62, BLACK)
+                    m = Move(60, 62, piece, EMPTY, 4)
+                    add m to moves
+
+        if castl["WQ"]
+            if board.is_empty(59) and board.is_empty(58) and board.is_empty(57)
+                if not is_square_attacked(board, 60, BLACK) and not is_square_attacked(board, 59, BLACK) and not is_square_attacked(board, 58, BLACK)
+                    m = Move(60, 58, piece, EMPTY, 4)
+                    add m to moves
+    else
+        if castl["BK"]
+            if board.is_empty(5) and board.is_empty(6)
+                if not is_square_attacked(board, 4, WHITE) and not is_square_attacked(board, 5, WHITE) and not is_square_attacked(board, 6, WHITE)
+                    m = Move(4, 6, piece, EMPTY, 4)
+                    add m to moves
+
+        if castl["BQ"]
+            if board.is_empty(3) and board.is_empty(2) and board.is_empty(1)
+                if not is_square_attacked(board, 4, WHITE) and not is_square_attacked(board, 3, WHITE) and not is_square_attacked(board, 2, WHITE)
+                    m = Move(4, 2, piece, EMPTY, 4)
+                    add m to moves
+
+to is_square_attacked board sq color
+    r = get_row(sq)
+    c = get_col(sq)
+    sqs = board.squares
+
+    if color == WHITE
+        dr = 1
+    else
+        dr = 0 - 1
+
+    nr = r + dr
+    nc = c - 1
+    if nr >= 0 and nr < 8 and nc >= 0 and nc < 8
+        idx = get_sq(nr, nc)
+        p = sqs[idx]
+        if get_piece_type(p) == PAWN and get_piece_color(p) == color
+            give yes
+
+    nc = c + 1
+    if nr >= 0 and nr < 8 and nc >= 0 and nc < 8
+        idx = get_sq(nr, nc)
+        p = sqs[idx]
+        if get_piece_type(p) == PAWN and get_piece_color(p) == color
+            give yes
+
+    dkr = 0 - 2
+    while dkr <= 2
+        if dkr == 0
+            dkr = dkr + 1
+            skip
+        dkc = 0 - 2
+        while dkc <= 2
+            if dkc == 0
+                dkc = dkc + 1
+                skip
+            if abs(dkr) + abs(dkc) == 3
+                nr = r + dkr
+                nc = c + dkc
+                if nr >= 0 and nr < 8 and nc >= 0 and nc < 8
+                    idx = get_sq(nr, nc)
+                    p = sqs[idx]
+                    if get_piece_type(p) == KNIGHT and get_piece_color(p) == color
+                        give yes
+            dkc = dkc + 1
+        dkc = 0 - 2
+        dkr = dkr + 1
+
+    for d in [1, 0 - 1, 8, 0 - 8]
+        dr = 0
+        dc = 0
+        if d == 1
+            dc = 1
+        elif d == 0 - 1
+            dc = 0 - 1
+        elif d == 8
+            dr = 1
+        elif d == 0 - 8
+            dr = 0 - 1
+
+        nr = r + dr
+        nc = c + dc
+        while nr >= 0 and nr < 8 and nc >= 0 and nc < 8
+            idx = get_sq(nr, nc)
+            p = sqs[idx]
+            if p != EMPTY
+                if get_piece_color(p) == color
+                    t = get_piece_type(p)
+                    if t == ROOK or t == QUEEN
+                        give yes
+                stop
+            nr = nr + dr
+            nc = nc + dc
+
+    for d in [7, 0 - 7, 9, 0 - 9]
+        dr = 0
+        dc = 0
+        if d == 7
+            dr = 1
+            dc = 0 - 1
+        elif d == 0 - 7
+            dr = 0 - 1
+            dc = 1
+        elif d == 9
+            dr = 1
+            dc = 1
+        elif d == 0 - 9
+            dr = 0 - 1
+            dc = 0 - 1
+
+        nr = r + dr
+        nc = c + dc
+        while nr >= 0 and nr < 8 and nc >= 0 and nc < 8
+            idx = get_sq(nr, nc)
+            p = sqs[idx]
+            if p != EMPTY
+                if get_piece_color(p) == color
+                    t = get_piece_type(p)
+                    if t == BISHOP or t == QUEEN
+                        give yes
+                stop
+            nr = nr + dr
+            nc = nc + dc
+
+    r_start = 0 - 1
+    r_end = 2
+    for dr in range r_start r_end
+        c_start = 0 - 1
+        c_end = 2
+        for dc in range c_start c_end
+            if dr == 0 and dc == 0
+                skip
+            nr = r + dr
+            nc = c + dc
+            if nr >= 0 and nr < 8 and nc >= 0 and nc < 8
+                idx = get_sq(nr, nc)
+                p = sqs[idx]
+                if get_piece_type(p) == KING and get_piece_color(p) == color
+                    give yes
+
+    give no
+
+to is_path_clear board from_sq to_sq
+    r1 = get_row(from_sq)
+    c1 = get_col(from_sq)
+    r2 = get_row(to_sq)
+    c2 = get_col(to_sq)
+
+    dr = 0
+    if r2 > r1
+        dr = 1
+    elif r2 < r1
+        dr = 0 - 1
+
+    dc = 0
+    if c2 > c1
+        dc = 1
+    elif c2 < c1
+        dc = 0 - 1
+
+    curr_r = r1 + dr
+    curr_c = c1 + dc
+
+    while yes
+        if curr_r == r2 and curr_c == c2
+            stop
+        if curr_r < 0 or curr_r >= 8 or curr_c < 0 or curr_c >= 8
+            stop
+
+        sq = get_sq(curr_r, curr_c)
+        if not board.is_empty(sq)
+            give no
+
+        curr_r = curr_r + dr
+        curr_c = curr_c + dc
+    give yes
+
+to is_in_check board color
+    ksq = board.get_king_square(color)
+    give is_square_attacked(board, ksq, 24 - color)
+
+to generate_legal_moves board
+    original_turn = board.turn
+    pseudo = generate_pseudo_legal_moves(board)
+    legal = []
+    for m in pseudo
+        board.make_move(m)
+        if not is_square_attacked(board, board.get_king_square(original_turn), board.turn)
+            add m to legal
+        board.undo_move()
+    give legal

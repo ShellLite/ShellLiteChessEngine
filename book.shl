@@ -1,0 +1,83 @@
+use "constants.shl"
+use "moves.shl"
+
+to square_to_str sq
+    r = int(sq / 8)
+    c = sq % 8
+    f = char(ord("a") + c)
+    rank = str(8 - r)
+    give f + rank
+
+to move_to_str move
+    give square_to_str(move.from_sq) + square_to_str(move.to_sq)
+
+opening_book = {
+    "": ["e2e4", "d2d4", "g1f3", "c2c4"],
+    "e2e4": ["e7e5", "c7c5", "e7e6", "c7c6"],
+    "e2e4 e7e5": ["g1f3", "f2f4", "b1c3"],
+    "e2e4 e7e5 g1f3": ["b8c6", "g8f6", "d7d6"],
+    "e2e4 e7e5 g1f3 b8c6": ["f1b5", "f1c4", "d2d4"],
+    "e2e4 e7e5 g1f3 b8c6 f1b5": ["a7a6", "g8f6"],
+    "e2e4 e7e5 g1f3 b8c6 f1c4": ["g8f6", "f1c5"],
+    "e2e4 e7e5 g1f3 b8c6 d2d4": ["e5d4"],
+    "e2e4 e7e5 g1f3 b8c6 d2d4 e5d4": ["f3d4", "c2c3"],
+    "e2e4 c7c5": ["g1f3", "b1c3", "c2c3"],
+    "e2e4 c7c5 g1f3": ["d7d6", "e7e6", "b8c6"],
+    "e2e4 c7c5 g1f3 d7d6": ["d2d4"],
+    "e2e4 c7c5 g1f3 d7d6 d2d4 c5d4": ["f3d4"],
+    "e2e4 c7c5 g1f3 d7d6 d2d4 c5d4 f3d4": ["g8f6"],
+    "e2e4 c7c5 g1f3 d7d6 d2d4 c5d4 f3d4 g8f6": ["b1c3"],
+    "e2e4 c7c5 g1f3 d7d6 d2d4 c5d4 f3d4 g8f6 b1c3": ["a7a6", "g7g6", "e7e6"],
+    "e2e4 e7e6": ["d2d4"],
+    "e2e4 e7e6 d2d4": ["d7d5"],
+    "e2e4 e7e6 d2d4 d7d5": ["b1c3", "e4e5", "e4d5"],
+    "e2e4 c7c6": ["d2d4"],
+    "e2e4 c7c6 d2d4": ["d7d5"],
+    "e2e4 c7c6 d2d4 d7d5": ["b1c3", "e4e5", "e4d5"],
+    "d2d4": ["d7d5", "g8f6"],
+    "d2d4 d7d5": ["c2c4", "g1f3"],
+    "d2d4 d7d5 c2c4": ["e7e6", "c7c6", "d5c4"],
+    "d2d4 d7d5 c2c4 e7e6": ["b1c3", "g1f3"],
+    "d2d4 d7d5 c2c4 e7e6 b1c3": ["g8f6"],
+    "d2d4 g8f6": ["c2c4", "g1f3"],
+    "d2d4 g8f6 c2c4": ["e7e6", "g7g6"],
+    "d2d4 g8f6 c2c4 e7e6": ["g1f3", "b1c3"],
+    "d2d4 g8f6 c2c4 g7g6": ["b1c3", "g1f3"],
+    "d2d4 g8f6 c2c4 g7g6 b1c3": ["d7d5", "e2e4"]
+}
+
+to is_starting_position board
+    if board.squares[0] != ROOK + BLACK or board.squares[4] != KING + BLACK or board.squares[7] != ROOK + BLACK
+        give no
+    if board.squares[56] != ROOK + WHITE or board.squares[60] != KING + WHITE or board.squares[63] != ROOK + WHITE
+        give no
+    give yes
+
+to get_book_move board
+    if not is_starting_position(board)
+        give null
+
+    seq = ""
+    for state in board.history
+        m = state["move"]
+        m_str = move_to_str(m)
+        if seq == ""
+            seq = m_str
+        else
+            seq = seq + " " + m_str
+
+    if contains(opening_book, seq)
+        choices = opening_book[seq]
+        n_choices = len(choices)
+        if n_choices > 0
+            idx = randint(0, n_choices - 1)
+            chosen_str = choices[idx]
+
+            legal_moves = generate_legal_moves(board)
+            for m in legal_moves
+                if move_to_str(m) == chosen_str
+                    print("info string Opening book play: " + chosen_str)
+                    give m
+    give null
+
+

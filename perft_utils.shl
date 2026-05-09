@@ -1,0 +1,91 @@
+to perft board depth
+    if depth == 0
+        give [1, 0, 0, 0, 0, 0, 0, 0, 0]
+
+    n = 0
+    c = 0
+    ep = 0
+    ca = 0
+    pr = 0
+    ch = 0
+    disc = 0
+    dbl = 0
+    cm = 0
+
+    moves = generate_legal_moves(board)
+    for m in moves
+        is_cap = no
+        if m.captured != 0
+            is_cap = yes
+
+        is_ep = no
+        if m.flags == 2
+            is_ep = yes
+
+        is_cas = no
+        if m.flags == 4
+            is_cas = yes
+
+        is_pro = no
+        if m.flags == 8
+            is_pro = yes
+
+        board.make_move(m)
+        sub_stats = perft(board, depth - 1)
+
+        n = n + sub_stats[0]
+        c = c + sub_stats[1]
+        ep = ep + sub_stats[2]
+        ca = ca + sub_stats[3]
+        pr = pr + sub_stats[4]
+        ch = ch + sub_stats[5]
+        disc = disc + sub_stats[6]
+        dbl = dbl + sub_stats[7]
+        cm = cm + sub_stats[8]
+
+        if depth == 1
+            if is_cap
+                c = c + 1
+            if is_ep
+                ep = ep + 1
+            if is_cas
+                ca = ca + 1
+            if is_pro
+                pr = pr + 1
+
+            opp_color = board.turn
+            if is_in_check(board, opp_color)
+                ch = ch + 1
+
+                ksq = board.get_king_square(opp_color)
+                my_color = 24 - opp_color
+                attackers = get_attackers(board, ksq, my_color)
+
+                if len(attackers) >= 2
+                    dbl = dbl + 1
+                else
+                    att_sq = attackers[0]
+                    if att_sq != m.to_sq
+                        disc = disc + 1
+
+                opp_moves = generate_legal_moves(board)
+                if len(opp_moves) == 0
+                    cm = cm + 1
+
+        board.undo_move()
+
+    give [n, c, ep, ca, pr, ch, disc, dbl, cm]
+
+to real_perft board depth
+    say "Wait..."
+    total_nodes = 0
+    moves = generate_legal_moves(board)
+    for m in moves
+        board.make_move(m)
+        sub_stats = perft(board, depth - 1)
+        say move_to_str(m) + ": " + str(sub_stats[0])
+        total_nodes = total_nodes + sub_stats[0]
+        board.undo_move()
+    say ""
+    say "Nodes searched: " + str(total_nodes)
+    give total_nodes
