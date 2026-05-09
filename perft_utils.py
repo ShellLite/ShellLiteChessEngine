@@ -141,76 +141,87 @@ for t in ['div', 'p', 'h1', 'h2', 'h3', 'h4', 'span', 'a',
     globals()[t] = _make_tag_fn(t)
 
 # --- User Script ---
-EMPTY = 0
-PAWN = 1
-KNIGHT = 2
-BISHOP = 3
-ROOK = 4
-QUEEN = 5
-KING = 6
-WHITE = 8
-BLACK = 16
-A8 = 0
-B8 = 1
-C8 = 2
-D8 = 3
-E8 = 4
-F8 = 5
-G8 = 6
-H8 = 7
-A1 = 56
-B1 = 57
-C1 = 58
-D1 = 59
-E1 = 60
-F1 = 61
-G1 = 62
-H1 = 63
-def get_piece_color(p):
+def perft(board, depth):
     _slang_ret = None
-    if (p == EMPTY):
-            return 0
-    if (p < BLACK):
-            return WHITE
-    else:
-            return BLACK
-    return _slang_ret
-def get_piece_type(p):
-    _slang_ret = None
-    if (p == EMPTY):
-            return EMPTY
-    if (p < BLACK):
-            return (p - WHITE)
-    else:
-            return (p - BLACK)
-    return _slang_ret
-lcg_state = [123456789]
-def next_random():
-    _slang_ret = None
-    lcg_state[0] = (((lcg_state[0] * 6364136223846793005) + 1442695040888963407) % 18446744073709551616)
-    return lcg_state[0]
-    return _slang_ret
-ZOBRIST_PIECES = []
-ZOBRIST_TURN = []
-ZOBRIST_CASTLING = []
-ZOBRIST_EP = []
-def init_zobrist():
-    _slang_ret = None
-    for _ in range(1472):
-            r_val = next_random()
-            _slang_ret = add(ZOBRIST_PIECES, r_val)
+    if (depth == 0):
+            return [1, 0, 0, 0, 0, 0, 0, 0, 0]
+    n = 0
+    c = 0
+    ep = 0
+    ca = 0
+    pr = 0
+    ch = 0
+    disc = 0
+    dbl = 0
+    cm = 0
+    moves = generate_legal_moves(board)
+    for m in moves:
+            is_cap = False
+            if ((m . captured) != 0):
+                        is_cap = True
+            is_ep = False
+            if ((m . flags) == 2):
+                        is_ep = True
+            is_cas = False
+            if ((m . flags) == 4):
+                        is_cas = True
+            is_pro = False
+            if ((m . flags) == 8):
+                        is_pro = True
+            _slang_ret = (board . make_move(m))
             _web_builder.add_text(_slang_ret)
-    r_val = next_random()
-    _slang_ret = add(ZOBRIST_TURN, r_val)
-    _web_builder.add_text(_slang_ret)
-    for _ in range(4):
-            r_val = next_random()
-            _slang_ret = add(ZOBRIST_CASTLING, r_val)
+            sub_stats = perft(board, (depth - 1))
+            n = (n + sub_stats[0])
+            c = (c + sub_stats[1])
+            ep = (ep + sub_stats[2])
+            ca = (ca + sub_stats[3])
+            pr = (pr + sub_stats[4])
+            ch = (ch + sub_stats[5])
+            disc = (disc + sub_stats[6])
+            dbl = (dbl + sub_stats[7])
+            cm = (cm + sub_stats[8])
+            if (depth == 1):
+                        if is_cap:
+                                        c = (c + 1)
+                        if is_ep:
+                                        ep = (ep + 1)
+                        if is_cas:
+                                        ca = (ca + 1)
+                        if is_pro:
+                                        pr = (pr + 1)
+                        opp_color = (board . turn)
+                        if is_in_check(board, opp_color):
+                                        ch = (ch + 1)
+                                        ksq = (board . get_king_square(opp_color))
+                                        my_color = (24 - opp_color)
+                                        attackers = get_attackers(board, ksq, my_color)
+                                        if (len(attackers) >= 2):
+                                                            dbl = (dbl + 1)
+                                        else:
+                                                            att_sq = attackers[0]
+                                                            if (att_sq != (m . to_sq)):
+                                                                                    disc = (disc + 1)
+                                        opp_moves = generate_legal_moves(board)
+                                        if (len(opp_moves) == 0):
+                                                            cm = (cm + 1)
+            _slang_ret = (board . undo_move())
             _web_builder.add_text(_slang_ret)
-    for _ in range(8):
-            r_val = next_random()
-            _slang_ret = add(ZOBRIST_EP, r_val)
-            _web_builder.add_text(_slang_ret)
+    return [n, c, ep, ca, pr, ch, disc, dbl, cm]
     return _slang_ret
-_slang_ret = init_zobrist()
-_web_builder.add_text(_slang_ret)
+def real_perft(board, depth):
+    _slang_ret = None
+    print('Wait...')
+    total_nodes = 0
+    moves = generate_legal_moves(board)
+    for m in moves:
+            _slang_ret = (board . make_move(m))
+            _web_builder.add_text(_slang_ret)
+            sub_stats = perft(board, (depth - 1))
+            print(((move_to_str(m) + ': ') + str(sub_stats[0])))
+            total_nodes = (total_nodes + sub_stats[0])
+            _slang_ret = (board . undo_move())
+            _web_builder.add_text(_slang_ret)
+    print('')
+    print(('Nodes searched: ' + str(total_nodes)))
+    return total_nodes
+    return _slang_ret

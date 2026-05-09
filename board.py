@@ -143,8 +143,9 @@ for t in ['div', 'p', 'h1', 'h2', 'h3', 'h4', 'span', 'a',
 # --- User Script ---
 from constants import *
 class Board(Instance):
-    def __init__(self, dummy=0, squares=[], turn=WHITE, castling={'WK': True, 'WQ': True, 'BK': True, 'BQ': True}, ep_square=(0 - 1), halfmove=0, fullmove=1, history=[]):
+    def __init__(self, dummy=0, zobrist_key=0, squares=[], turn=WHITE, castling={'WK': True, 'WQ': True, 'BK': True, 'BQ': True}, ep_square=(0 - 1), halfmove=0, fullmove=1, history=[], white_king_sq=60, black_king_sq=4):
         self.dummy = dummy
+        self.zobrist_key = zobrist_key
         self.squares = squares
         self.turn = turn
         self.castling = castling
@@ -152,13 +153,34 @@ class Board(Instance):
         self.halfmove = halfmove
         self.fullmove = fullmove
         self.history = history
+        self.white_king_sq = white_king_sq
+        self.black_king_sq = black_king_sq
 
     def get_king_square(self, color):
+        if (color == WHITE):
+                    return self.white_king_sq
+        else:
+                    return self.black_king_sq
+    def compute_zobrist_key(self):
+        h = 0
         for i in range(0, 64):
                     p = self.squares[i]
-                    if (((p != EMPTY) and (get_piece_type(p) == KING)) and (get_piece_color(p) == color)):
-                                    return i
-        return (0 - 1)
+                    if (p != EMPTY):
+                                    h = xor(h, ZOBRIST_PIECES[((p * 64) + i)])
+        if (self.turn == BLACK):
+                    h = xor(h, ZOBRIST_TURN[0])
+        if (self.castling['WK'] == True):
+                    h = xor(h, ZOBRIST_CASTLING[0])
+        if (self.castling['WQ'] == True):
+                    h = xor(h, ZOBRIST_CASTLING[1])
+        if (self.castling['BK'] == True):
+                    h = xor(h, ZOBRIST_CASTLING[2])
+        if (self.castling['BQ'] == True):
+                    h = xor(h, ZOBRIST_CASTLING[3])
+        if (self.ep_square != (0 - 1)):
+                    ep_file = (self.ep_square % 8)
+                    h = xor(h, ZOBRIST_EP[ep_file])
+        return h
     def reset(self):
         self.squares = []
         for _ in range(64):
@@ -189,6 +211,9 @@ class Board(Instance):
         self.halfmove = 0
         self.fullmove = 1
         self.history = []
+        self.white_king_sq = 60
+        self.black_king_sq = 4
+        self.zobrist_key = (self . compute_zobrist_key())
     def set_fen(self, fen_str):
         self.squares = []
         for _ in range(64):
@@ -199,9 +224,16 @@ class Board(Instance):
         if empty(parts):
                     return False
         placement = parts[0]
-        row = 0
-        col = 0
+        num_slashes = 0
         n = len(placement)
+        for i in range(0, n):
+                    if (placement[i] == '/'):
+                                    num_slashes = (num_slashes + 1)
+        pad_rows = (7 - num_slashes)
+        if (pad_rows < 0):
+                    pad_rows = 0
+        row = pad_rows
+        col = 0
         for i in range(0, n):
                     char_val = placement[i]
                     if (char_val == '/'):
@@ -283,6 +315,16 @@ class Board(Instance):
         self.fullmove = 1
         if (len(parts) > 5):
                     self.fullmove = int(parts[5])
+        self.white_king_sq = (0 - 1)
+        self.black_king_sq = (0 - 1)
+        for i in range(0, 64):
+                    p = self.squares[i]
+                    if ((p != EMPTY) and (get_piece_type(p) == KING)):
+                                    if (get_piece_color(p) == WHITE):
+                                                        self.white_king_sq = i
+                                    else:
+                                                        self.black_king_sq = i
+        self.zobrist_key = (self . compute_zobrist_key())
     def get_piece(self, square):
         return self.squares[square]
     def set_piece(self, square, piece):
@@ -308,7 +350,7 @@ class Board(Instance):
     def set_ep_square(self, sq):
         self.ep_square = sq
     def make_move(self, move):
-        state = {'turn': self.turn, 'castling': {'WK': self.castling['WK'], 'WQ': self.castling['WQ'], 'BK': self.castling['BK'], 'BQ': self.castling['BQ']}, 'ep_square': self.ep_square, 'halfmove': self.halfmove, 'move': move}
+        state = {'turn': self.turn, 'castling': {'WK': self.castling['WK'], 'WQ': self.castling['WQ'], 'BK': self.castling['BK'], 'BQ': self.castling['BQ']}, 'ep_square': self.ep_square, 'halfmove': self.halfmove, 'white_king_sq': self.white_king_sq, 'black_king_sq': self.black_king_sq, 'zobrist_key': self.zobrist_key, 'move': move}
         _slang_ret = add(self.history, state)
         _web_builder.add_text(_slang_ret)
         self.squares[(move . to_sq)] = (move . piece)
@@ -326,20 +368,28 @@ class Board(Instance):
                     else:
                                     self.squares[((move . to_sq) - 8)] = EMPTY
         if ((move . flags) == 4):
-                    if ((move . to_sq) == 62):
+                    if (((move . to_sq) == 62) or ((move . to_sq) == 63)):
+                                    self.squares[62] = (KING + WHITE)
                                     self.squares[61] = (ROOK + WHITE)
+                                    self.squares[60] = EMPTY
                                     self.squares[63] = EMPTY
                     else:
-                                    if ((move . to_sq) == 58):
+                                    if (((move . to_sq) == 58) or ((move . to_sq) == 56)):
+                                                        self.squares[58] = (KING + WHITE)
                                                         self.squares[59] = (ROOK + WHITE)
+                                                        self.squares[60] = EMPTY
                                                         self.squares[56] = EMPTY
                                     else:
-                                                        if ((move . to_sq) == 6):
+                                                        if (((move . to_sq) == 6) or ((move . to_sq) == 7)):
+                                                                                self.squares[6] = (KING + BLACK)
                                                                                 self.squares[5] = (ROOK + BLACK)
+                                                                                self.squares[4] = EMPTY
                                                                                 self.squares[7] = EMPTY
                                                         else:
-                                                                                if ((move . to_sq) == 2):
+                                                                                if (((move . to_sq) == 2) or ((move . to_sq) == 0)):
+                                                                                                            self.squares[2] = (KING + BLACK)
                                                                                                             self.squares[3] = (ROOK + BLACK)
+                                                                                                            self.squares[4] = EMPTY
                                                                                                             self.squares[0] = EMPTY
         if ((move . from_sq) == 60):
                     self.castling['WK'] = False
@@ -360,11 +410,29 @@ class Board(Instance):
         if (get_piece_type((move . piece)) == PAWN):
                     if (abs(((move . to_sq) - (move . from_sq))) == 16):
                                     self.ep_square = int((((move . from_sq) + (move . to_sq)) / 2))
+        if ((move . piece) == (KING + WHITE)):
+                    if ((move . flags) == 4):
+                                    if (((move . to_sq) == 62) or ((move . to_sq) == 63)):
+                                                        self.white_king_sq = 62
+                                    else:
+                                                        self.white_king_sq = 58
+                    else:
+                                    self.white_king_sq = (move . to_sq)
+        else:
+                    if ((move . piece) == (KING + BLACK)):
+                                    if ((move . flags) == 4):
+                                                        if (((move . to_sq) == 6) or ((move . to_sq) == 7)):
+                                                                                self.black_king_sq = 6
+                                                        else:
+                                                                                self.black_king_sq = 2
+                                    else:
+                                                        self.black_king_sq = (move . to_sq)
         if (self.turn == WHITE):
                     self.turn = BLACK
         else:
                     self.turn = WHITE
                     self.fullmove = (self.fullmove + 1)
+        self.zobrist_key = (self . compute_zobrist_key())
     def undo_move(self):
         if empty(self.history):
                     return False
@@ -379,25 +447,36 @@ class Board(Instance):
                     else:
                                     self.squares[((move . to_sq) - 8)] = (PAWN + WHITE)
         if ((move . flags) == 4):
-                    if ((move . to_sq) == 62):
+                    if (((move . to_sq) == 62) or ((move . to_sq) == 63)):
+                                    self.squares[60] = (KING + WHITE)
                                     self.squares[63] = (ROOK + WHITE)
                                     self.squares[61] = EMPTY
+                                    self.squares[62] = EMPTY
                     else:
-                                    if ((move . to_sq) == 58):
+                                    if (((move . to_sq) == 58) or ((move . to_sq) == 56)):
+                                                        self.squares[60] = (KING + WHITE)
                                                         self.squares[56] = (ROOK + WHITE)
+                                                        self.squares[58] = EMPTY
                                                         self.squares[59] = EMPTY
                                     else:
-                                                        if ((move . to_sq) == 6):
+                                                        if (((move . to_sq) == 6) or ((move . to_sq) == 7)):
+                                                                                self.squares[4] = (KING + BLACK)
                                                                                 self.squares[7] = (ROOK + BLACK)
                                                                                 self.squares[5] = EMPTY
+                                                                                self.squares[6] = EMPTY
                                                         else:
-                                                                                if ((move . to_sq) == 2):
+                                                                                if (((move . to_sq) == 2) or ((move . to_sq) == 0)):
+                                                                                                            self.squares[4] = (KING + BLACK)
                                                                                                             self.squares[0] = (ROOK + BLACK)
+                                                                                                            self.squares[2] = EMPTY
                                                                                                             self.squares[3] = EMPTY
         self.turn = state['turn']
         self.castling = state['castling']
         self.ep_square = state['ep_square']
         self.halfmove = state['halfmove']
+        self.white_king_sq = state['white_king_sq']
+        self.black_king_sq = state['black_king_sq']
+        self.zobrist_key = state['zobrist_key']
         if (self.turn == BLACK):
                     self.fullmove = (self.fullmove - 1)
         return True

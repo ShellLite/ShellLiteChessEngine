@@ -3,8 +3,6 @@ use "moves.shl"
 use "time"
 use "book.shl"
 
-
-
 PAWN_PST = [
     0,  0,  0,  0,  0,  0,  0,  0,
     50, 50, 50, 50, 50, 50, 50, 50,
@@ -60,6 +58,17 @@ KING_PST = [
      20,  30,  10,   0,   0,  10,  30,  20
 ]
 
+QUEEN_PST = [
+    0 - 20, 0 - 10, 0 - 10, 0 - 5, 0 - 5, 0 - 10, 0 - 10, 0 - 20,
+    0 - 10,   0,   0,   0,   0,   0,   0, 0 - 10,
+    0 - 10,   0,   5,   5,   5,   5,   0, 0 - 10,
+    0 - 5,   0,   5,   5,   5,   5,   0, 0 - 5,
+      0,   0,   5,   5,   5,   5,   0, 0 - 5,
+    0 - 10,   5,   5,   5,   5,   5,   0, 0 - 10,
+    0 - 10,   0,   5,   0,   0,   0,   0, 0 - 10,
+    0 - 20, 0 - 10, 0 - 10, 0 - 5, 0 - 5, 0 - 10, 0 - 10, 0 - 20
+]
+
 KING_ENDGAME_PST = [
     0 - 50, 0 - 40, 0 - 30, 0 - 20, 0 - 20, 0 - 30, 0 - 40, 0 - 50,
     0 - 30, 0 - 20, 0 - 10,   0,   0, 0 - 10, 0 - 20, 0 - 30,
@@ -71,14 +80,36 @@ KING_ENDGAME_PST = [
     0 - 50, 0 - 30, 0 - 30, 0 - 30, 0 - 30, 0 - 30, 0 - 30, 0 - 50
 ]
 
-
-
-
 tt_table = {}
+learning_table = {}
+
+to load_learning_cache
+    if exists("learning_cache.json")
+        content = read "learning_cache.json"
+        learning_table = json_parse(content)
+    else
+        learning_table = {}
+
+to save_learning_cache
+    content = json_stringify(learning_table)
+    write content to "learning_cache.json"
 
 to tt_lookup key depth alpha beta
     if contains(tt_table, key)
         entry = tt_table[key]
+        if entry["depth"] >= depth
+            val = entry["val"]
+            flag = entry["flag"]
+            if flag == 0
+                give val
+            if flag == 1
+                if val >= beta
+                    give val
+            if flag == 2
+                if val <= alpha
+                    give val
+    elif contains(learning_table, key)
+        entry = learning_table[key]
         if entry["depth"] >= depth
             val = entry["val"]
             flag = entry["flag"]
@@ -101,9 +132,35 @@ to tt_store key depth val flag move
     }
     tt_table[key] = entry
 
-
+    if depth >= 4
+        m_data = null
+        if move != null
+            m_data = {
+                "from_sq": move.from_sq,
+                "to_sq": move.to_sq,
+                "piece": move.piece,
+                "captured": move.captured,
+                "flags": move.flags
+            }
+        
+        learning_entry = {
+            "depth": depth,
+            "val": val,
+            "flag": flag,
+            "move": m_data
+        }
+        
+        should_store = yes
+        if contains(learning_table, key)
+            existing = learning_table[key]
+            if existing["depth"] > depth
+                should_store = no
+        
+        if should_store == yes
+            learning_table[key] = learning_entry
 
 killer_table = {}
+history_table = {}
 
 to add_killer ply move
     if not contains(killer_table, ply)
@@ -120,86 +177,84 @@ to add_killer ply move
         if len(killers) > 2
             pop(killers, 0)
 
-
-
-
-
-
-to is_endgame board
-    white_pieces = 0
-    black_pieces = 0
-    white_queens = 0
-    black_queens = 0
-    sqs = board.squares
-    for i in range 0 64
-        p = sqs[i]
-        if p != 0
-            ptype = get_piece_type(p)
-            color = get_piece_color(p)
-            if ptype != PAWN and ptype != KING
-                if color == WHITE
-                    white_pieces = white_pieces + 1
-                    if ptype == QUEEN
-                        white_queens = white_queens + 1
-                else
-                    black_pieces = black_pieces + 1
-                    if ptype == QUEEN
-                        black_queens = black_queens + 1
-
-    if white_queens == 0 and black_queens == 0
-        give yes
-    if white_pieces <= 2 and black_pieces <= 2
-        give yes
-    give no
-
 to evaluate board
     score = 0
     sqs = board.squares
     turn = board.turn
 
-    is_eg = is_endgame(board)
-
+    white_pawns_in_file = [0, 0, 0, 0, 0, 0, 0, 0]
+    black_pawns_in_file = [0, 0, 0, 0, 0, 0, 0, 0]
     white_pieces = 0
     black_pieces = 0
+    white_queens = 0
+    black_queens = 0
+    white_bishops = 0
+    black_bishops = 0
+    white_knights = 0
+    black_knights = 0
+
+    white_pawn_eg_bonus = 0
+    black_pawn_eg_bonus = 0
+
+    white_rooks = []
+    black_rooks = []
 
     for i in range 0 64
         p = sqs[i]
         if p == 0
             skip
-
-        color = get_piece_color(p)
-        ptype = get_piece_type(p)
-
-        if ptype != PAWN and ptype != KING
-            if color == WHITE
-                white_pieces = white_pieces + 1
-            else
-                black_pieces = black_pieces + 1
+        
+        ptype = p % 8
+        color = p - ptype
 
         val = 0
         if ptype == 1
             val = 100
-            if is_eg
-                r = int(i / 8)
-                if color == WHITE
-                    rank_num = 7 - r
-                    if rank_num >= 4
-                        val = val + rank_num * 10
-                else
-                    rank_num = r
-                    if rank_num >= 4
-                        val = val + rank_num * 10
+            col = i % 8
+            if color == 8
+                white_pawns_in_file[col] = white_pawns_in_file[col] + 1
+                rank_num = 7 - int(i / 8)
+                if rank_num >= 4
+                    white_pawn_eg_bonus = white_pawn_eg_bonus + rank_num * 10
+            else
+                black_pawns_in_file[col] = black_pawns_in_file[col] + 1
+                rank_num = int(i / 8)
+                if rank_num >= 4
+                    black_pawn_eg_bonus = black_pawn_eg_bonus + rank_num * 10
         elif ptype == 2
             val = 300
+            if color == 8
+                white_pieces = white_pieces + 1
+                white_knights = white_knights + 1
+            else
+                black_pieces = black_pieces + 1
+                black_knights = black_knights + 1
         elif ptype == 3
             val = 320
+            if color == 8
+                white_pieces = white_pieces + 1
+                white_bishops = white_bishops + 1
+            else
+                black_pieces = black_pieces + 1
+                black_bishops = black_bishops + 1
         elif ptype == 4
             val = 500
+            if color == 8
+                white_pieces = white_pieces + 1
+                add i to white_rooks
+            else
+                black_pieces = black_pieces + 1
+                add i to black_rooks
         elif ptype == 5
             val = 900
+            if color == 8
+                white_pieces = white_pieces + 1
+                white_queens = white_queens + 1
+            else
+                black_pieces = black_pieces + 1
+                black_queens = black_queens + 1
         elif ptype == 6
             val = 20000
-
 
         idx = i
         if color == 16
@@ -216,11 +271,10 @@ to evaluate board
             pst_val = BISHOP_PST[idx]
         elif ptype == 4
             pst_val = ROOK_PST[idx]
+        elif ptype == 5
+            pst_val = QUEEN_PST[idx]
         elif ptype == 6
-            if is_eg
-                pst_val = KING_ENDGAME_PST[idx]
-            else
-                pst_val = KING_PST[idx]
+            pst_val = KING_PST[idx]
 
         val = val + pst_val
 
@@ -229,10 +283,198 @@ to evaluate board
         else
             score = score - val
 
+        if ptype == 2
+            offsets = [[0 - 2, 0 - 1], [0 - 2, 1], [0 - 1, 0 - 2], [0 - 1, 2], [1, 0 - 2], [1, 2], [2, 0 - 1], [2, 1]]
+            mob = 0
+            kr = int(i / 8)
+            kc = i % 8
+            for off in offsets
+                nr = kr + off[0]
+                nc = kc + off[1]
+                if nr >= 0 and nr < 8 and nc >= 0 and nc < 8
+                    target = nr * 8 + nc
+                    tp = sqs[target]
+                    if tp == EMPTY or (tp - (tp % 8)) != color
+                        mob = mob + 1
+            mob_val = mob * 2
+            if color == turn
+                score = score + mob_val
+            else
+                score = score - mob_val
+
+        elif ptype == 3 or ptype == 4 or ptype == 5
+            dirs = []
+            if ptype == 3
+                dirs = [7, 0 - 7, 9, 0 - 9]
+            elif ptype == 4
+                dirs = [1, 0 - 1, 8, 0 - 8]
+            else
+                dirs = [1, 0 - 1, 8, 0 - 8, 7, 0 - 7, 9, 0 - 9]
+
+            mob = 0
+            sr = int(i / 8)
+            sc = i % 8
+            for d in dirs
+                dr = 0
+                dc = 0
+                if d == 1
+                    dc = 1
+                elif d == 0 - 1
+                    dc = 0 - 1
+                elif d == 8
+                    dr = 1
+                elif d == 0 - 8
+                    dr = 0 - 1
+                elif d == 7
+                    dr = 1
+                    dc = 0 - 1
+                elif d == 0 - 7
+                    dr = 0 - 1
+                    dc = 1
+                elif d == 9
+                    dr = 1
+                    dc = 1
+                elif d == 0 - 9
+                    dr = 0 - 1
+                    dc = 0 - 1
+
+                nr = sr + dr
+                nc = sc + dc
+                while nr >= 0 and nr < 8 and nc >= 0 and nc < 8
+                    target = nr * 8 + nc
+                    tp = sqs[target]
+                    if tp == EMPTY
+                        mob = mob + 1
+                    else
+                        if (tp - (tp % 8)) != color
+                            mob = mob + 1
+                        stop
+                    nr = nr + dr
+                    nc = nc + dc
+            mob_val = mob * 2
+            if color == turn
+                score = score + mob_val
+            else
+                score = score - mob_val
+
+    is_eg = no
+    if white_queens == 0 and black_queens == 0
+        is_eg = yes
+    elif white_pieces <= 2 and black_pieces <= 2
+        is_eg = yes
+
+    if white_bishops >= 2
+        if turn == WHITE
+            score = score + 40
+        else
+            score = score - 40
+    if black_bishops >= 2
+        if turn == BLACK
+            score = score + 40
+        else
+            score = score - 40
+
+    for r_sq in white_rooks
+        col = r_sq % 8
+        wp = white_pawns_in_file[col]
+        bp = black_pawns_in_file[col]
+        bonus = 0
+        if wp == 0
+            if bp == 0
+                bonus = 30
+            else
+                bonus = 15
+        if turn == WHITE
+            score = score + bonus
+        else
+            score = score - bonus
+
+    for r_sq in black_rooks
+        col = r_sq % 8
+        wp = white_pawns_in_file[col]
+        bp = black_pawns_in_file[col]
+        bonus = 0
+        if bp == 0
+            if wp == 0
+                bonus = 30
+            else
+                bonus = 15
+        if turn == BLACK
+            score = score + bonus
+        else
+            score = score - bonus
+
+    wk_sq = board.white_king_sq
+    bk_sq = board.black_king_sq
+
+    if is_eg
+        if wk_sq != 0 - 1
+            pst_diff = KING_ENDGAME_PST[wk_sq] - KING_PST[wk_sq]
+            if turn == WHITE
+                score = score + pst_diff
+            else
+                score = score - pst_diff
+
+        if bk_sq != 0 - 1
+            bk_r = int(bk_sq / 8)
+            bk_c = bk_sq % 8
+            bk_idx = (7 - bk_r) * 8 + bk_c
+            pst_diff = KING_ENDGAME_PST[bk_idx] - KING_PST[bk_idx]
+            if turn == BLACK
+                score = score + pst_diff
+            else
+                score = score - pst_diff
+
+        if turn == WHITE
+            score = score + white_pawn_eg_bonus - black_pawn_eg_bonus
+        else
+            score = score + black_pawn_eg_bonus - white_pawn_eg_bonus
+
+    else
+        if wk_sq != 0 - 1
+            wk_safety = 0
+            if wk_sq == 62 or wk_sq == 63
+                if sqs[53] != PAWN + WHITE
+                    wk_safety = wk_safety - 20
+                if sqs[54] != PAWN + WHITE
+                    wk_safety = wk_safety - 20
+                if sqs[55] != PAWN + WHITE
+                    wk_safety = wk_safety - 20
+            elif wk_sq == 58 or wk_sq == 57
+                if sqs[48] != PAWN + WHITE
+                    wk_safety = wk_safety - 20
+                if sqs[49] != PAWN + WHITE
+                    wk_safety = wk_safety - 20
+                if sqs[50] != PAWN + WHITE
+                    wk_safety = wk_safety - 20
+            if turn == WHITE
+                score = score + wk_safety
+            else
+                score = score - wk_safety
+
+        if bk_sq != 0 - 1
+            bk_safety = 0
+            if bk_sq == 6 or bk_sq == 7
+                if sqs[13] != PAWN + BLACK
+                    bk_safety = bk_safety - 20
+                if sqs[14] != PAWN + BLACK
+                    bk_safety = bk_safety - 20
+                if sqs[15] != PAWN + BLACK
+                    bk_safety = bk_safety - 20
+            elif bk_sq == 2 or bk_sq == 1
+                if sqs[8] != PAWN + BLACK
+                    bk_safety = bk_safety - 20
+                if sqs[9] != PAWN + BLACK
+                    bk_safety = bk_safety - 20
+                if sqs[10] != PAWN + BLACK
+                    bk_safety = bk_safety - 20
+            if turn == BLACK
+                score = score + bk_safety
+            else
+                score = score - bk_safety
+
     if is_eg
         if white_pieces == 0
-            wk_sq = board.get_king_square(WHITE)
-            bk_sq = board.get_king_square(BLACK)
             if wk_sq != 0 - 1 and bk_sq != 0 - 1
                 wk_r = int(wk_sq / 8)
                 wk_c = wk_sq % 8
@@ -243,13 +485,11 @@ to evaluate board
                 dist_between_kings = abs(wk_r - bk_r) + abs(wk_c - bk_c)
 
                 mop_up = int(dist_to_center * 10) + int((14 - dist_between_kings) * 5)
-                if turn == BLACK
+                if turn == 16
                     score = score + mop_up
                 else
                     score = score - mop_up
         elif black_pieces == 0
-            wk_sq = board.get_king_square(WHITE)
-            bk_sq = board.get_king_square(BLACK)
             if wk_sq != 0 - 1 and bk_sq != 0 - 1
                 bk_r = int(bk_sq / 8)
                 bk_c = bk_sq % 8
@@ -260,15 +500,80 @@ to evaluate board
                 dist_between_kings = abs(wk_r - bk_r) + abs(wk_c - bk_c)
 
                 mop_up = int(dist_to_center * 10) + int((14 - dist_between_kings) * 5)
-                if turn == WHITE
+                if turn == 8
                     score = score + mop_up
                 else
                     score = score - mop_up
 
+    for f in range 0 8
+        wp = white_pawns_in_file[f]
+        bp = black_pawns_in_file[f]
+        if wp > 1
+            penalty = (wp - 1) * 15
+            if turn == WHITE
+                score = score - penalty
+            else
+                score = score + penalty
+        if bp > 1
+            penalty = (bp - 1) * 15
+            if turn == BLACK
+                score = score - penalty
+            else
+                score = score + penalty
+        if wp > 0
+            has_adj_w = no
+            if f > 0
+                if white_pawns_in_file[f - 1] > 0
+                    has_adj_w = yes
+            if f < 7
+                if white_pawns_in_file[f + 1] > 0
+                    has_adj_w = yes
+            if not has_adj_w
+                if turn == WHITE
+                    score = score - 12
+                else
+                    score = score + 12
+        if bp > 0
+            has_adj_b = no
+            if f > 0
+                if black_pawns_in_file[f - 1] > 0
+                    has_adj_b = yes
+            if f < 7
+                if black_pawns_in_file[f + 1] > 0
+                    has_adj_b = yes
+            if not has_adj_b
+                if turn == BLACK
+                    score = score - 12
+                else
+                    score = score + 12
+        if wp > 0 and bp == 0
+            blocked = no
+            if f > 0
+                if black_pawns_in_file[f - 1] > 0
+                    blocked = yes
+            if f < 7
+                if black_pawns_in_file[f + 1] > 0
+                    blocked = yes
+            if not blocked
+                if turn == WHITE
+                    score = score + 20
+                else
+                    score = score - 20
+        if bp > 0 and wp == 0
+            blocked = no
+            if f > 0
+                if white_pawns_in_file[f - 1] > 0
+                    blocked = yes
+            if f < 7
+                if white_pawns_in_file[f + 1] > 0
+                    blocked = yes
+            if not blocked
+                if turn == BLACK
+                    score = score + 20
+                else
+                    score = score - 20
+
     give score
-
-
-
 
 to generate_legal_captures board
     original_turn = board.turn
@@ -284,8 +589,6 @@ to generate_legal_captures board
         board.undo_move()
     give legal_captures
 
-
-
 search_state = { "start_time": 0.0, "time_limit": 100000000.0, "aborted": no, "node_count": 0 }
 
 to check_time
@@ -294,8 +597,6 @@ to check_time
         elapsed = time.time() * 1000.0 - search_state["start_time"]
         if elapsed > search_state["time_limit"]
             search_state["aborted"] = yes
-
-
 
 to quiescence board alpha beta
     check_time()
@@ -328,8 +629,6 @@ to quiescence board alpha beta
 
     give alpha
 
-
-
 to make_null_move board
     old_turn = board.turn
     old_ep = board.ep_square
@@ -344,9 +643,8 @@ to undo_null_move board state
     board.set_turn(state[0])
     board.set_ep_square(state[1])
 
-
-
 to find_best_move board depth allocated_time = 100000000.0
+    load_learning_cache()
     book_move = get_book_move(board)
     if book_move != null
         give book_move
@@ -359,6 +657,7 @@ to find_best_move board depth allocated_time = 100000000.0
     best_move = null
     clear_dict(tt_table)
     clear_dict(killer_table)
+    clear_dict(history_table)
 
     search_state["start_time"] = time.time() * 1000.0
     search_state["time_limit"] = float(allocated_time)
@@ -366,22 +665,46 @@ to find_best_move board depth allocated_time = 100000000.0
     search_state["node_count"] = 0
 
     last_completed_best_move = moves[0]
+    last_val = 0 - 1000000
 
     end_depth = depth + 1
     for d in range 1 end_depth
-        key = str(board.squares) + "," + str(board.turn)
+        key = board.zobrist_key
         hash_move = null
         if contains(tt_table, key)
             hash_move = tt_table[key]["move"]
+        elif contains(learning_table, key)
+            l_entry = learning_table[key]
+            l_move = l_entry["move"]
+            if l_move != null
+                hash_move = Move(l_move["from_sq"], l_move["to_sq"], l_move["piece"], l_move["captured"], l_move["flags"])
 
         ordered = order_moves(moves, hash_move, 0)
 
         best_val = 0 - 1000000
         depth_best_move = null
 
+        use_aspiration = no
+        asp_alpha = 0 - 1000000
+        asp_beta = 1000000
+        if d >= 3 and last_val != 0 - 1000000
+            use_aspiration = yes
+            asp_alpha = last_val - 30
+            asp_beta = last_val + 30
+
         for m in ordered
             board.make_move(m)
-            val = 0 - negamax(board, d - 1, 0 - 1000000, 0 - best_val, 1)
+            alpha = 0 - 1000000
+            beta = 0 - best_val
+            if use_aspiration == yes
+                alpha = asp_alpha
+                beta = asp_beta
+                if 0 - best_val < beta
+                    beta = 0 - best_val
+                if alpha < 0 - 1000000
+                    alpha = 0 - 1000000
+
+            val = 0 - negamax(board, d - 1, 0 - beta, 0 - alpha, 1)
             board.undo_move()
 
             if search_state["aborted"] == yes
@@ -391,24 +714,79 @@ to find_best_move board depth allocated_time = 100000000.0
                 best_val = val
                 depth_best_move = m
 
+        if use_aspiration == yes and (best_val <= asp_alpha or best_val >= asp_beta)
+            best_val = 0 - 1000000
+            depth_best_move = null
+            for m in ordered
+                board.make_move(m)
+                val = 0 - negamax(board, d - 1, 0 - 1000000, 0 - best_val, 1)
+                board.undo_move()
+
+                if search_state["aborted"] == yes
+                    stop
+
+                if val > best_val
+                    best_val = val
+                    depth_best_move = m
+
         if search_state["aborted"] == yes
             stop
 
         last_completed_best_move = depth_best_move
+        last_val = best_val
         tt_store(key, d, best_val, 0, depth_best_move)
 
         elapsed = time.time() * 1000.0 - search_state["start_time"]
         if elapsed * 2.0 > search_state["time_limit"]
             stop
 
+    save_learning_cache()
     give last_completed_best_move
+
+to is_repetition board
+    key = board.zobrist_key
+    h_len = len(board.history)
+    if h_len == 0
+        give no
+
+    limit = h_len + 1
+    for i in range 1 limit
+        idx = h_len - i
+        h_state = board.history[idx]
+        if h_state["zobrist_key"] == key
+            give yes
+
+        m = h_state["move"]
+        if m != null
+            if get_piece_type(m.piece) == PAWN or (m.captured != EMPTY and m.captured != 0)
+                give no
+    give no
+
+to has_non_pawn_pieces board color
+    sqs = board.squares
+    for i in range 0 64
+        p = sqs[i]
+        if p != EMPTY
+            pt = p % 8
+            pc = p - pt
+            if pc == color
+                if pt == KNIGHT or pt == BISHOP or pt == ROOK or pt == QUEEN
+                    give yes
+    give no
 
 to negamax board depth alpha beta ply
     check_time()
     if search_state["aborted"] == yes
         give 0
 
-    key = str(board.squares) + "," + str(board.turn)
+    if ply > 0 and is_repetition(board)
+        give 0
+
+    in_check = is_in_check(board, board.turn)
+    if in_check
+        depth = depth + 1
+
+    key = board.zobrist_key
     tt_val = tt_lookup(key, depth, alpha, beta)
     if tt_val != null
         give tt_val
@@ -416,16 +794,39 @@ to negamax board depth alpha beta ply
     if depth == 0
         give quiescence(board, alpha, beta)
 
-    if depth >= 3 and not is_in_check(board, board.turn)
+    if not in_check
+        static_val = evaluate(board)
+
+        if depth <= 4
+            if static_val - depth * 100 >= beta
+                give static_val
+        
+        if depth <= 2
+            if static_val + 300 < alpha
+                give quiescence(board, alpha, beta)
+
+    if depth >= 3 and not in_check and has_non_pawn_pieces(board, board.turn)
+        r = 2
+        if depth >= 6
+            r = 3
+        
+        # Adaptive Null Move Pruning based on static evaluation margin
+        margin = static_val - beta
+        if margin > 0
+            extra = int(margin / 200)
+            if extra > 2
+                extra = 2
+            r = r + extra
+
         null_state = make_null_move(board)
-        score = 0 - negamax(board, depth - 3, 0 - beta, 0 - beta + 1, ply + 1)
+        score = 0 - negamax(board, depth - 1 - r, 0 - beta, 0 - beta + 1, ply + 1)
         undo_null_move(board, null_state)
         if score >= beta
             give beta
 
     moves = generate_legal_moves(board)
     if empty(moves)
-        if is_in_check(board, board.turn)
+        if in_check
             give 0 - 100000 + ply
         else
             give 0
@@ -438,11 +839,48 @@ to negamax board depth alpha beta ply
 
     best_val = 0 - 1000000
     best_move = null
+    moves_searched = 0
+
+    futility_ok = no
+    if depth <= 4 and not in_check
+        fut_margin = depth * 150
+        if static_val + fut_margin < alpha
+            futility_ok = yes
 
     for m in ordered
+        if futility_ok and moves_searched >= 1
+            if m.captured == 0 and m.flags == 0
+                moves_searched = moves_searched + 1
+                skip
+
         board.make_move(m)
-        val = 0 - negamax(board, depth - 1, 0 - beta, 0 - alpha, ply + 1)
+
+        is_lmr = no
+        if depth >= 3 and moves_searched >= 3 and m.captured == 0 and m.flags == 0
+            if not is_in_check(board, board.turn)
+                is_lmr = yes
+
+        val = 0 - 1000000
+        if is_lmr == yes
+            reduction = 1
+            if depth >= 5 and moves_searched >= 6
+                reduction = 2
+            val = 0 - negamax(board, depth - 1 - reduction, 0 - alpha - 1, 0 - alpha, ply + 1)
+            
+            if val > alpha
+                val = 0 - negamax(board, depth - 1, 0 - alpha - 1, 0 - alpha, ply + 1)
+                if val > alpha and val < beta
+                    val = 0 - negamax(board, depth - 1, 0 - beta, 0 - alpha, ply + 1)
+        else
+            if moves_searched == 0
+                val = 0 - negamax(board, depth - 1, 0 - beta, 0 - alpha, ply + 1)
+            else
+                val = 0 - negamax(board, depth - 1, 0 - alpha - 1, 0 - alpha, ply + 1)
+                if val > alpha and val < beta
+                    val = 0 - negamax(board, depth - 1, 0 - beta, 0 - alpha, ply + 1)
+
         board.undo_move()
+        moves_searched = moves_searched + 1
 
         if search_state["aborted"] == yes
             stop
@@ -455,8 +893,13 @@ to negamax board depth alpha beta ply
             alpha = val
 
         if beta <= alpha
-            if m.captured == EMPTY or m.captured == 0
+            if m.captured == 0
                 add_killer(ply, m)
+                h_key = m.from_sq * 64 + m.to_sq
+                h_score = 0
+                if contains(history_table, h_key)
+                    h_score = history_table[h_key]
+                history_table[h_key] = h_score + depth * depth
             stop
 
     if search_state["aborted"] == yes
@@ -470,5 +913,3 @@ to negamax board depth alpha beta ply
 
     tt_store(key, depth, best_val, flag, best_move)
     give best_val
-
-

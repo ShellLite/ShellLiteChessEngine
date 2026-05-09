@@ -141,76 +141,33 @@ for t in ['div', 'p', 'h1', 'h2', 'h3', 'h4', 'span', 'a',
     globals()[t] = _make_tag_fn(t)
 
 # --- User Script ---
-EMPTY = 0
-PAWN = 1
-KNIGHT = 2
-BISHOP = 3
-ROOK = 4
-QUEEN = 5
-KING = 6
-WHITE = 8
-BLACK = 16
-A8 = 0
-B8 = 1
-C8 = 2
-D8 = 3
-E8 = 4
-F8 = 5
-G8 = 6
-H8 = 7
-A1 = 56
-B1 = 57
-C1 = 58
-D1 = 59
-E1 = 60
-F1 = 61
-G1 = 62
-H1 = 63
-def get_piece_color(p):
+from constants import *
+from board import *
+from moves import *
+def perft(board, depth):
     _slang_ret = None
-    if (p == EMPTY):
-            return 0
-    if (p < BLACK):
-            return WHITE
-    else:
-            return BLACK
-    return _slang_ret
-def get_piece_type(p):
-    _slang_ret = None
-    if (p == EMPTY):
-            return EMPTY
-    if (p < BLACK):
-            return (p - WHITE)
-    else:
-            return (p - BLACK)
-    return _slang_ret
-lcg_state = [123456789]
-def next_random():
-    _slang_ret = None
-    lcg_state[0] = (((lcg_state[0] * 6364136223846793005) + 1442695040888963407) % 18446744073709551616)
-    return lcg_state[0]
-    return _slang_ret
-ZOBRIST_PIECES = []
-ZOBRIST_TURN = []
-ZOBRIST_CASTLING = []
-ZOBRIST_EP = []
-def init_zobrist():
-    _slang_ret = None
-    for _ in range(1472):
-            r_val = next_random()
-            _slang_ret = add(ZOBRIST_PIECES, r_val)
+    if (depth == 0):
+            return 1
+    nodes = 0
+    moves = generate_legal_moves(board)
+    for m in moves:
+            _slang_ret = (board . make_move(m))
             _web_builder.add_text(_slang_ret)
-    r_val = next_random()
-    _slang_ret = add(ZOBRIST_TURN, r_val)
-    _web_builder.add_text(_slang_ret)
-    for _ in range(4):
-            r_val = next_random()
-            _slang_ret = add(ZOBRIST_CASTLING, r_val)
+            nodes = (nodes + perft(board, (depth - 1)))
+            _slang_ret = (board . undo_move())
             _web_builder.add_text(_slang_ret)
-    for _ in range(8):
-            r_val = next_random()
-            _slang_ret = add(ZOBRIST_EP, r_val)
-            _web_builder.add_text(_slang_ret)
+    return nodes
     return _slang_ret
-_slang_ret = init_zobrist()
+def test_perft():
+    _slang_ret = None
+    board = create_board()
+    print('Perft Test from Start Position')
+    for d in range(1, 4):
+            _slang_ret = (board . reset())
+            _web_builder.add_text(_slang_ret)
+            print((('Running depth ' + str(d)) + '...'))
+            nodes = perft(board, d)
+            print(((('Depth ' + str(d)) + ' nodes: ') + str(nodes)))
+    return _slang_ret
+_slang_ret = test_perft()
 _web_builder.add_text(_slang_ret)

@@ -58,8 +58,11 @@ class UCIEngine:
         """Start the engine subprocess."""
         from queue import Queue, Empty
 
-        shelllite_path = os.path.join(SCRIPT_DIR, "..", "ShellLite")
+        shelllite_path = os.path.abspath(os.path.join(SCRIPT_DIR, "..", "ShellLite"))
         env = os.environ.copy()
+        for k in list(env.keys()):
+            if k.upper() == "PYTHONPATH":
+                env.pop(k)
         env["PYTHONPATH"] = shelllite_path
 
         main_py = os.path.join(SCRIPT_DIR, "main.py")
@@ -151,7 +154,7 @@ class UCIEngine:
             self._send(position_cmd)
             self._send(go_cmd)
 
-            lines = self._read_until("bestmove", timeout=60)
+            lines = self._read_until("bestmove", timeout=120)
             print(f"[DEBUG ENGINE] Received lines:")
             for line in lines:
                 print(f"  > {line}")
@@ -216,10 +219,27 @@ class LichessClient:
         return r.status_code == 200
 
     def make_move(self, game_id, move):
-        r = self.session.post(
-            f"{LICHESS_API}/api/bot/game/{game_id}/move/{move}"
-        )
-        return r.status_code == 200
+        for attempt in range(3):
+            try:
+                r = self.session.post(
+                    f"{LICHESS_API}/api/bot/game/{game_id}/move/{move}"
+                )
+                if r.status_code == 200:
+                    return True
+                
+                if r.status_code == 429:
+                    wait_time = 2 * (attempt + 1)
+                    print(f"[DEBUG LICHESS API] Rate limited (429) playing move {move}. Attempt {attempt + 1}/3. Retrying in {wait_time}s...")
+                    time.sleep(wait_time)
+                    continue
+                
+                print(f"[DEBUG LICHESS API] Move {move} failed with status {r.status_code}: {r.text}")
+                return False
+            except Exception as e:
+                wait_time = 1 + attempt
+                print(f"[DEBUG LICHESS API] Network error playing move {move}: {e}. Retrying in {wait_time}s...")
+                time.sleep(wait_time)
+        return False
 
     def send_chat(self, game_id, text, room="player"):
         self.session.post(
@@ -233,7 +253,7 @@ class LichessClient:
 
 def handle_game(game_id, bot_id, config, active_games):
     """Handle a single game from start to finish."""
-    depth = config.get("engine_depth", 2)
+    depth = config.get("engine_depth", 5)
     print(f"[Game {game_id}] Starting game handler...")
 
     client = LichessClient(config["token"])
@@ -241,6 +261,7 @@ def handle_game(game_id, bot_id, config, active_games):
     engine.start()
 
     initial_fen = None
+    last_played_move_count = -1
     try:
         client.send_chat(game_id, "Good luck! I'm the ShellLite chess engine.", "player")
 
@@ -264,6 +285,7 @@ def handle_game(game_id, bot_id, config, active_games):
 
                         state = event.get("state", {})
                         moves_str = state.get("moves", "")
+                        move_count = len(moves_str.strip().split()) if moves_str.strip() else 0
                         status = state.get("status", "")
                         initial_fen = event.get("initialFen")
 
@@ -277,10 +299,13 @@ def handle_game(game_id, bot_id, config, active_games):
                             break
 
                         if _is_our_turn(moves_str, bot_color):
-                            _play_move(client, engine, game_id, moves_str, depth, initial_fen, wtime, btime, winc, binc)
+                            if move_count > last_played_move_count:
+                                last_played_move_count = move_count
+                                _play_move(client, engine, game_id, moves_str, depth, initial_fen, wtime, btime, winc, binc)
 
                     elif event_type == "gameState":
                         moves_str = event.get("moves", "")
+                        move_count = len(moves_str.strip().split()) if moves_str.strip() else 0
                         status = event.get("status", "")
 
                         wtime = event.get("wtime")
@@ -293,7 +318,9 @@ def handle_game(game_id, bot_id, config, active_games):
                             break
 
                         if _is_our_turn(moves_str, bot_color):
-                            _play_move(client, engine, game_id, moves_str, depth, initial_fen, wtime, btime, winc, binc)
+                            if move_count > last_played_move_count:
+                                last_played_move_count = move_count
+                                _play_move(client, engine, game_id, moves_str, depth, initial_fen, wtime, btime, winc, binc)
 
                     elif event_type == "chatLine":
                         pass
@@ -308,7 +335,7 @@ def handle_game(game_id, bot_id, config, active_games):
                     time.sleep(wait)
                 else:
                     raise
-            except requests.exceptions.RequestException as e:
+            except Exception as e:
                 retries += 1
                 wait = min(2 * retries, 10)
                 print(f"[Game {game_id}] Connection interrupted ({e}), reconnecting in {wait}s... ({retries}/{max_retries})")
@@ -458,9 +485,6 @@ def main():
                         active_games.discard(game_id)
                         print(f"[Game] Game finished: {game_id}")
 
-            except requests.exceptions.ConnectionError:
-                print("[Lichess] Connection lost. Reconnecting in 5 seconds...")
-                time.sleep(5)
             except requests.exceptions.HTTPError as e:
                 if e.response is not None and e.response.status_code == 429:
                     print("[Lichess] Rate limited (429). Waiting 60 seconds...")
@@ -468,6 +492,9 @@ def main():
                 else:
                     print(f"[Lichess] HTTP error: {e}. Retrying in 10 seconds...")
                     time.sleep(10)
+            except Exception as e:
+                print(f"[Lichess] Connection lost or error occurred ({e}). Reconnecting in 5 seconds...")
+                time.sleep(5)
 
     except KeyboardInterrupt:
         print("\n[Bot] Shutting down...")

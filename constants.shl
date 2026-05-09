@@ -42,3 +42,33 @@ to get_piece_type p
         give p - WHITE
     else
         give p - BLACK
+
+
+# Deterministic 64-bit LCG
+lcg_state = [123456789]
+to next_random
+    lcg_state[0] = (lcg_state[0] * 6364136223846793005 + 1442695040888963407) % 18446744073709551616
+    give lcg_state[0]
+
+ZOBRIST_PIECES = []
+ZOBRIST_TURN = []
+ZOBRIST_CASTLING = []
+ZOBRIST_EP = []
+
+to init_zobrist
+    repeat 1472 times
+        r_val = next_random()
+        add r_val to ZOBRIST_PIECES
+
+    r_val = next_random()
+    add r_val to ZOBRIST_TURN
+
+    repeat 4 times
+        r_val = next_random()
+        add r_val to ZOBRIST_CASTLING
+
+    repeat 8 times
+        r_val = next_random()
+        add r_val to ZOBRIST_EP
+
+init_zobrist()

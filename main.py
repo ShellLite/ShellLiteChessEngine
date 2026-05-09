@@ -155,7 +155,12 @@ def square_to_str(sq):
     return _slang_ret
 def move_to_str(move):
     _slang_ret = None
-    return (square_to_str((move . from_sq)) + square_to_str((move . to_sq)))
+    suffix = ''
+    if (get_piece_type((move . piece)) == PAWN):
+            to_row = int(((move . to_sq) / 8))
+            if ((to_row == 0) or (to_row == 7)):
+                        suffix = 'q'
+    return ((square_to_str((move . from_sq)) + square_to_str((move . to_sq))) + suffix)
     return _slang_ret
 def str_to_sq(s):
     _slang_ret = None
@@ -227,8 +232,12 @@ def play_game():
                                                                                                                                                                                                                             captured = (board . get_piece(tsq))
                                                                                                                                                                                                                             flags = 0
                                                                                                                                                                                                                             pt = get_piece_type(piece)
-                                                                                                                                                                                                                            if ((pt == KING) and (abs((tsq - fsq)) == 2)):
-                                                                                                                                                                                                                                                                        flags = 4
+                                                                                                                                                                                                                            if (pt == KING):
+                                                                                                                                                                                                                                                                        if ((fsq == 60) and ((((tsq == 62) or (tsq == 63)) or (tsq == 58)) or (tsq == 56))):
+                                                                                                                                                                                                                                                                                                                        flags = 4
+                                                                                                                                                                                                                                                                        else:
+                                                                                                                                                                                                                                                                                                                        if ((fsq == 4) and ((((tsq == 6) or (tsq == 7)) or (tsq == 2)) or (tsq == 0))):
+                                                                                                                                                                                                                                                                                                                                                                            flags = 4
                                                                                                                                                                                                                             if (pt == PAWN):
                                                                                                                                                                                                                                                                         diff = abs((tsq - fsq))
                                                                                                                                                                                                                                                                         if (diff == 16):
@@ -245,7 +254,7 @@ def play_game():
                                                                                                                                                                                                                             _web_builder.add_text(_slang_ret)
                                                             else:
                                                                                     if (line . startswith('go')):
-                                                                                                                search_depth = 12
+                                                                                                                search_depth = 6
                                                                                                                 allocated_time = 100000000.0
                                                                                                                 parts = split(line)
                                                                                                                 n_p = len(parts)
@@ -276,12 +285,31 @@ def play_game():
                                                                                                                                                                                                                                                                                                                         my_inc = float(parts[(idx + 1)])
                                                                                                                                                                                     idx = (idx + 1)
                                                                                                                                                 if (my_time > 0.0):
-                                                                                                                                                                                    allocated_time = ((my_time / 40.0) + my_inc)
+                                                                                                                                                                                    search_depth = 30
+                                                                                                                                                                                    if (my_time <= 10000.0):
+                                                                                                                                                                                                                            allocated_time = ((my_time * 0.1) + (my_inc * 0.5))
+                                                                                                                                                                                    else:
+                                                                                                                                                                                                                            if (my_time <= 30000.0):
+                                                                                                                                                                                                                                                                        allocated_time = ((my_time * 0.08) + (my_inc * 0.5))
+                                                                                                                                                                                                                            else:
+                                                                                                                                                                                                                                                                        if (my_time <= 120000.0):
+                                                                                                                                                                                                                                                                                                                        allocated_time = ((my_time * 0.06) + (my_inc * 0.6))
+                                                                                                                                                                                                                                                                        else:
+                                                                                                                                                                                                                                                                                                                        if (my_time <= 300000.0):
+                                                                                                                                                                                                                                                                                                                                                                            allocated_time = ((my_time * 0.04) + (my_inc * 0.7))
+                                                                                                                                                                                                                                                                                                                        else:
+                                                                                                                                                                                                                                                                                                                                                                            allocated_time = ((my_time * 0.03) + (my_inc * 0.8))
+                                                                                                                                                                                    if (allocated_time > (my_time - 500.0)):
+                                                                                                                                                                                                                            allocated_time = (my_time - 500.0)
+                                                                                                                                                                                    if (allocated_time < 100.0):
+                                                                                                                                                                                                                            allocated_time = 100.0
                                                                                                                                                                                     max_safe = (my_time * 0.8)
                                                                                                                                                                                     if (allocated_time > max_safe):
                                                                                                                                                                                                                             allocated_time = max_safe
+                                                                                                                                                                                    if (allocated_time > 6000.0):
+                                                                                                                                                                                                                            allocated_time = 6000.0
                                                                                                                 if ('infinite' in line):
-                                                                                                                                                search_depth = 20
+                                                                                                                                                search_depth = 10
                                                                                                                                                 allocated_time = 100000000.0
                                                                                                                 best_move = find_best_move(board, search_depth, allocated_time)
                                                                                                                 if (best_move != null):
