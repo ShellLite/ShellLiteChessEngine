@@ -120,7 +120,7 @@ ChessEngine/
 5.  Edit `lichess_config.json` and replace `YOUR_LICHESS_BOT_TOKEN_HERE` with your personal token:
     ```json
     {
-        "token": "lip_XXXXXXXXXXXXXXXXXXXX",
+        "token": "XXXXXX",
         "engine_depth": 5,
         "max_simultaneous_games": 3,
         "accept_variants": ["standard"],
