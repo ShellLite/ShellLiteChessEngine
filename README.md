@@ -1,9 +1,6 @@
 # ShellLite Chess Engine & Lichess Bot
 
-[![Language](https://img.shields.io/badge/Language-ShellLite%20%7C%20Python%203.10%2B-blue.svg?style=for-the-badge)](https://github.com)
-[![Protocol](https://img.shields.io/badge/Protocol-UCI%20Compliant-orange.svg?style=for-the-badge)](https://images.chesscomfiles.com/uploads/v1/images_users/tiny_mce/pete/php6097d6a546da1.png)
-[![License](https://img.shields.io/badge/License-MIT-green.svg?style=for-the-badge)](LICENSE)
-[![Lichess Bot](https://img.shields.io/badge/Lichess-Bot%20Bridge-red.svg?style=for-the-badge)](https://lichess.org)
+[![Language](https://img.shields.io/badge/Language-ShellLite-blue.svg?style=for-the-badge)](https://github.com/ShellLite/ShellLite)
 
 Dual language chess engine written from scratch in the **ShellLite** programming language and **Python** (for the lichess bot), featuring a multithreaded **Lichess Bot Bridge** for automated online matchplay.
 
