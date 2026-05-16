@@ -10,7 +10,6 @@ import concurrent.futures
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from shell_lite.runtime import *
 
-# Initialize Runtime Helpers
 builtins_map = get_builtins()
 globals().update(builtins_map)
 
@@ -24,14 +23,11 @@ class DotDict(dict):
         self[key] = value
 
 STD_MODULES = get_std_modules()
-# Wrap modules
 for k, v in STD_MODULES.items():
     if isinstance(v, dict): STD_MODULES[k] = DotDict(v)
 
-# Async Executor
 _executor = concurrent.futures.ThreadPoolExecutor()
 
-# HTTP Server Support
 GLOBAL_ROUTES = {}
 GLOBAL_STATIC_ROUTES = {}
 
@@ -42,7 +38,6 @@ class ShellLiteHTTPHandler(BaseHTTPRequestHandler):
         self.handle_req()
     def handle_req(self):
         path = self.path
-        # Static Routes
         for prefix, folder in GLOBAL_STATIC_ROUTES.items():
             if path.startswith(prefix):
                 clean_path = path[len(prefix):]
@@ -53,7 +48,6 @@ class ShellLiteHTTPHandler(BaseHTTPRequestHandler):
                 if os.path.exists(file_path) and \
                    os.path.isfile(file_path):
                      self.send_response(200)
-                     # Simple mime type guessing
                      if file_path.endswith('.css'):
                          settings = 'text/css'
                      elif file_path.endswith('.js'):
@@ -82,7 +76,6 @@ class ShellLiteHTTPHandler(BaseHTTPRequestHandler):
             self.send_response(404)
             self.wfile.write(b'Not Found')
 
-# --- Web DSL Support ---
 class Tag:
     def __init__(self, name, attrs=None):
         self.name = name
@@ -140,7 +133,6 @@ for t in ['div', 'p', 'h1', 'h2', 'h3', 'h4', 'span', 'a',
           'script', 'style', 'br', 'hr']:
     globals()[t] = _make_tag_fn(t)
 
-# --- User Script ---
 def perft(board, depth):
     _slang_ret = None
     if (depth == 0):

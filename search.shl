@@ -810,7 +810,6 @@ to negamax board depth alpha beta ply
         if depth >= 6
             r = 3
         
-        # Adaptive Null Move Pruning based on static evaluation margin
         margin = static_val - beta
         if margin > 0
             extra = int(margin / 200)

@@ -2,6 +2,7 @@ use "constants.shl"
 use "board.shl"
 use "moves.shl"
 use "search.shl"
+say "DEBUG: main.shl top level started"
 
 to square_to_str sq
     r = int(sq / 8)
@@ -24,6 +25,7 @@ to str_to_sq s
     give r * 8 + f
 
 to play_game
+    say "DEBUG: play_game started"
     board = create_board()
     say "info string engine ready"
 
@@ -182,4 +184,4 @@ to play_game
                         row_str = row_str + str(p) + " "
                 say row_str
 
-play_game()
+say "DEBUG: main.shl finished initialization"

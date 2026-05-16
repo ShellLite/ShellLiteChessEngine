@@ -65,10 +65,10 @@ class UCIEngine:
                 env.pop(k)
         env["PYTHONPATH"] = shelllite_path
 
-        main_py = os.path.join(SCRIPT_DIR, "main.py")
+        run_llvm = os.path.join(SCRIPT_DIR, "run_llvm.py")
 
         self.process = subprocess.Popen(
-            [sys.executable, main_py],
+            [sys.executable, run_llvm, "constants.ll", "board.ll", "book.ll", "moves.ll", "search.ll", "main.ll"],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
