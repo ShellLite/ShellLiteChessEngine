@@ -3,5 +3,11 @@ __pycache__/
 *$py.class
 lichess_config.json
 .vscode/
-.idea/
-.DS_Store
+
+*.ll
+board.py
+book.py
+constants.py
+main.py
+moves.py
+search.py
